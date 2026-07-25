@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="es-PY">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#0B5F3C">
+  <title>RutaFútbol PY – Página no encontrada</title>
+  <!-- Página autónoma, sin recursos externos: GitHub Pages la sirve para
+       cualquier ruta inexistente y a cualquier profundidad, donde las rutas
+       relativas a styles.css / app.js ya no funcionarían. -->
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #F4F7F5;
+      color: #14221B;
+    }
+    main {
+      text-align: center;
+      padding: 32px 20px;
+      max-width: 420px;
+    }
+    h1 { color: #0B5F3C; margin: 0 0 10px; }
+    p { color: #66746D; }
+    a {
+      display: inline-block;
+      margin-top: 14px;
+      padding: 12px 18px;
+      border-radius: 14px;
+      background: #0B5F3C;
+      color: #fff;
+      text-decoration: none;
+      font-weight: 800;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>RutaFútbol PY</h1>
+    <p>Esta dirección no existe. Te llevamos al inicio…</p>
+    <a id="homeLink" href="./">Ir al inicio</a>
+  </main>
+  <script>
+    (function () {
+      // En una página de proyecto (usuario.github.io/repositorio/…) el primer
+      // segmento de la ruta es la base del sitio; en un dominio propio o una
+      // página de usuario, la base es la raíz.
+      var parts = location.pathname.split('/').filter(Boolean);
+      var base = '/';
+      if (/\.github\.io$/i.test(location.hostname) && parts.length > 1) {
+        base = '/' + parts[0] + '/';
+      }
+      var target = base + (location.hash || '#/inicio');
+      document.getElementById('homeLink').setAttribute('href', target);
+      try {
+        // La bandera evita un bucle de redirecciones si también la página de
+        // inicio fallara; app.js la limpia cuando la app arranca bien.
+        if (!sessionStorage.getItem('ruta-404-redirect')) {
+          sessionStorage.setItem('ruta-404-redirect', '1');
+          location.replace(target);
+        }
+      } catch (e) {
+        location.replace(target);
+      }
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="es-PY">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0B5F3C">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="RutaFútbol">
+  <meta name="description" content="Partidos, estadios y rutas del fútbol paraguayo.">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="preconnect" href="https://unpkg.com" crossorigin>
+  <title>RutaFútbol PY – Fechas 1 a 3</title>
+</head>
+<body>
+  <div id="offlineBanner" class="offline-banner" hidden>Sin conexión. Mostrando datos guardados.</div>
+
+  <header class="topbar">
+    <button id="menuButton" class="icon-button" aria-label="Ir al inicio">☰</button>
+    <div class="brand">
+      <img src="icons/icon-192.png" alt="">
+      <div>
+        <strong>RutaFútbol PY</strong>
+        <span>Clausura 2026 · Fechas 1–3</span>
+      </div>
+    </div>
+    <button id="installButton" class="install-button" hidden>Instalar</button>
+  </header>
+
+  <div id="iosHint" class="ios-hint" hidden>En iPhone: abrí en Safari → Compartir → Añadir a pantalla de inicio.</div>
+
+  <main id="app" tabindex="-1"></main>
+
+  <noscript>
+    <div class="noscript-note">RutaFútbol PY necesita JavaScript. Activá JavaScript en tu navegador para continuar.</div>
+  </noscript>
+
+  <nav class="bottom-nav" aria-label="Navegación principal">
+    <a href="#/inicio" data-route="inicio"><span>⌂</span>Inicio</a>
+    <a href="#/partidos" data-route="partidos"><span>⚽</span>Partidos</a>
+    <a href="#/mapa" data-route="mapa"><span>⌖</span>Mapa</a>
+    <a href="#/estadios" data-route="estadios"><span>▣</span>Estadios</a>
+    <a href="#/pasaporte" data-route="pasaporte"><span>✓</span>Pasaporte</a>
+  </nav>
+
+  <dialog id="detailDialog" class="detail-dialog">
+    <button id="closeDialog" class="dialog-close" aria-label="Cerrar">×</button>
+    <div id="dialogContent"></div>
+  </dialog>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

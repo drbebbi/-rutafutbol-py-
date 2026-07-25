@@ -51,22 +51,39 @@ Zum Testen auf dem iPhone im selben WLAN: `http://<IP-des-Rechners>:8080`
 
 ## GitHub Pages
 
-Das Repository enthält den Workflow `.github/workflows/pages.yml`.
-
-Nach dem ersten Push auf `main`:
-
-1. Repository öffnen.
-2. **Settings → Pages** öffnen.
-3. Unter **Build and deployment** als Quelle **GitHub Actions** auswählen.
-4. Den Workflow unter **Actions** abwarten.
-
-Beim aktuellen Repository-Namen lautet die Seite voraussichtlich:
+Die Seite ist erreichbar unter:
 
 `https://drbebbi.github.io/-rutafutbol-py-/`
 
-Nach einer Umbenennung auf `rutafutbol-py` lautet sie:
+### Wie das Deployment funktioniert
 
-`https://drbebbi.github.io/rutafutbol-py/`
+Pages läuft für dieses Repository im **Branch-Modus** und veröffentlicht den
+Branch `gh-pages`. Der Workflow `.github/workflows/pages.yml` spiegelt bei
+jedem Push auf `main` den aktuellen Stand nach `gh-pages`; GitHub baut die
+Seite danach automatisch (sichtbar unter Actions als
+„pages build and deployment").
+
+Arbeitsablauf im Alltag: **immer auf `main` arbeiten.** Der Branch `gh-pages`
+ist reines Veröffentlichungsziel und wird vom Workflow überschrieben – dort
+niemals von Hand committen.
+
+### Warum nicht `actions/deploy-pages`
+
+Der übliche Weg über `actions/configure-pages` und `actions/deploy-pages`
+setzt voraus, dass unter **Settings → Pages** als Quelle **GitHub Actions**
+eingestellt ist. Ohne diese Einstellung scheitert er mit
+`Get Pages site failed` bzw. `Create Pages site failed: Resource not
+accessible by integration` – ein Workflow-Token darf eine Pages-Site nicht
+selbst anlegen. Der Branch-Weg kommt ohne jede Einstellung aus.
+
+Wer später doch auf den Actions-Modus umstellen möchte: unter
+**Settings → Pages → Source** auf **GitHub Actions** wechseln und den
+Workflow wieder auf `configure-pages` / `upload-pages-artifact` /
+`deploy-pages` umbauen.
+
+Nach einer Umbenennung des Repositories auf `rutafutbol-py` lautet die
+Adresse `https://drbebbi.github.io/rutafutbol-py/`; am Code ist dafür nichts
+zu ändern, da alle Pfade relativ sind.
 
 Alle Pfade der App sind relativ – sie funktioniert in jedem
 Repository-Unterordner ohne Anpassung.

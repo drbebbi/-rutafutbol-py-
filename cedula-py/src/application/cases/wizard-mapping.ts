@@ -80,13 +80,26 @@ export type DecisionSummary = Readonly<{
   verificationFlags: readonly string[];
 }>;
 
+/**
+ * Codes are deduplicated on the way out.
+ *
+ * The engine reports one blocking issue per (code, decision slot family) pair,
+ * because it needs to know *which* decision each missing answer is holding up.
+ * The slot family is an internal detail: showing it would leak the decision
+ * model into the product surface, and dropping it without deduplicating leaves
+ * the user staring at the same question listed five times.
+ */
+function uniqueSorted(codes: readonly string[]): readonly string[] {
+  return [...new Set(codes)].sort();
+}
+
 export function summariseDecision(decision: CaseEvaluationDecision): DecisionSummary {
   return {
     status: decision.caseClassification.status,
     caseType: decision.caseClassification.caseType,
     requiredProcedureCount: decision.requiredProcedures.length,
     requiredDocumentCount: decision.requiredDocuments.length,
-    blockingIssues: decision.blockingIssues.map((issue) => issue.code),
-    verificationFlags: decision.verificationFlags.map((flag) => flag.code),
+    blockingIssues: uniqueSorted(decision.blockingIssues.map((issue) => issue.code)),
+    verificationFlags: uniqueSorted(decision.verificationFlags.map((flag) => flag.code)),
   };
 }

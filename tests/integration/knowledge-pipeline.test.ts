@@ -83,13 +83,15 @@ maybe("knowledge pipeline", () => {
       const inserted = await client.query<{ rule_revision_id: string }>(
         `insert into core.rule_revisions (rule_id, rule_set_revision_id, version, publication_status,
            verification_status, valid_from, payload_schema_version, payload)
-         values ($1,$2,1,'PUBLISHED','CONFIRMED','2000-01-01','rule-payload@1.0',$3::jsonb)
+         values ($1,$2,1,'PUBLISHED','CONFIRMED','2000-01-01','rule-payload@2.0',$3::jsonb)
          returning rule_revision_id`,
         [ruleId, ruleSetRevisionId, JSON.stringify(payload)],
       );
       const revisionId = inserted.rows[0]?.rule_revision_id as string;
       await client.query(
-        "insert into core.rule_evidence (rule_revision_id, source_revision_id, citation_detail) values ($1,$2,'synthetic')",
+        `insert into core.rule_evidence
+           (rule_revision_id, source_revision_id, role, claim_summary, citation_detail, quote)
+         values ($1,$2,'SUPPORTS','synthetic','synthetic',null)`,
         [revisionId, sourceRevisionId],
       );
       return revisionId;
@@ -98,20 +100,56 @@ maybe("knowledge pipeline", () => {
     await insertRule(ids.caseTypeRule, {
       family: "CLASSIFICATION",
       scope: "CASE",
+      subject: "CASE_TYPE",
       condition: { kind: "CONSTANT", value: "TRUE" },
-      consequence: { kind: "CASE_TYPE", caseType: "STANDARD_FIRST_CEDULA_FROM_NONE" },
+      precedence: [],
+      resolution: {
+        state: "RESOLVED",
+        consequence: { kind: "CASE_TYPE", caseType: "STANDARD_FIRST_CEDULA_FROM_NONE" },
+      },
     });
     await insertRule(ids.procedureRule, {
       family: "PROCEDURE",
       scope: "CASE",
       condition: { kind: "CONSTANT", value: "TRUE" },
-      consequence: { procedureId: ids.procedure, parameters: [], discriminator: null, requirement: "REQUIRED" },
+      precedence: [],
+      resolution: {
+        state: "RESOLVED",
+        consequence: {
+          procedureId: ids.procedure,
+          parameters: [],
+          discriminator: null,
+          requirement: "REQUIRED",
+        },
+      },
     });
 
     await client.query("insert into core.product_policies (product_policy_id, label) values ($1,'Test')", [ids.policy]);
     await client.query(
-      "insert into core.product_policy_revisions (product_policy_id, publication_status, valid_from, supported_desired_procedures) values ($1,'PUBLISHED','2000-01-01', array['FIRST_CEDULA']::core.desired_procedure[])",
-      [ids.policy],
+      `insert into core.product_policy_revisions
+         (product_policy_id, publication_status, valid_from, payload_schema_version, payload)
+       values ($1,'PUBLISHED','2000-01-01','product-policy@1.0', $2::jsonb)`,
+      [
+        ids.policy,
+        JSON.stringify({
+          supportedDesiredProcedures: ["FIRST_CEDULA"],
+          rules: [
+            {
+              policyRuleKey: "research-required",
+              condition: {
+                coverageStates: ["RESEARCH_REQUIRED"],
+                desiredProcedures: [],
+                countries: [],
+                caseTypes: [],
+              },
+              effect: {
+                kind: "VERIFICATION_REQUIRED",
+                code: "PRODUCT_COVERAGE_RESEARCH_REQUIRED",
+              },
+            },
+          ],
+        }),
+      ],
     );
     await client.query("insert into core.product_coverages (product_coverage_id, label) values ($1,'Test')", [ids.coverage]);
     await client.query(
@@ -120,8 +158,16 @@ maybe("knowledge pipeline", () => {
     );
     await client.query("insert into core.pathway_definitions (pathway_definition_id, pathway_id, label) values ($1,$2,'Test')", [ids.pathwayDefinition, ids.pathway]);
     await client.query(
-      "insert into core.pathway_definition_revisions (pathway_definition_id, publication_status, valid_from, applies_to_case_types, sections) values ($1,'PUBLISHED','2000-01-01', array['STANDARD_FIRST_CEDULA_FROM_NONE'], '[]'::jsonb)",
-      [ids.pathwayDefinition],
+      `insert into core.pathway_definition_revisions
+         (pathway_definition_id, publication_status, valid_from, payload_schema_version, payload)
+       values ($1,'PUBLISHED','2000-01-01','pathway-definition@1.0', $2::jsonb)`,
+      [
+        ids.pathwayDefinition,
+        JSON.stringify({
+          appliesToCaseTypes: ["STANDARD_FIRST_CEDULA_FROM_NONE"],
+          sections: [],
+        }),
+      ],
     );
   });
 

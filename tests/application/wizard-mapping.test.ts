@@ -108,7 +108,13 @@ describe("decision summary", () => {
   it("reports each verification code once and in a stable order", () => {
     const decision: CaseEvaluationDecision = {
       residenceClassification: { state: "UNRESOLVED", classification: null },
-      caseClassification: { caseType: null, status: "NEEDS_OFFICIAL_VERIFICATION" },
+      productAssessment: { coverage: { state: "SUPPORTED", provenance: [] }, effects: [] },
+      caseClassification: {
+        caseType: null,
+        status: "NEEDS_OFFICIAL_VERIFICATION",
+        reasonCodes: ["NO_RULE_CLASSIFIED_THE_CASE"],
+        provenance: { rules: [], productPolicies: [], productCoverages: [] },
+      },
       applicablePathway: null,
       modifiers: [],
       blockingIssues: [],

@@ -1,17 +1,19 @@
 import { err, ok, type Result } from "../../shared/result/result";
 import type { UserCaseFacts } from "../../domain/case/user-case-facts";
-import type { CaseType } from "../../domain/case/classification";
+import type { CaseClassificationReasonCode, CaseType } from "../../domain/case/classification";
 import type { EvaluationExecutionContext } from "../../domain/evaluation/context";
 import type { EngineDescriptor } from "../../domain/evaluation/engine-descriptor";
 import type { CaseEvaluationDecision } from "../../domain/evaluation/decision";
 import type { BlockingIssue, CaseModifier, VerificationFlag, Warning } from "../../domain/evaluation/issues";
+import type { AppliedProductPolicyEffect } from "../../domain/product/product";
 import type { SupportLevel } from "../../domain/rules/verification";
 import type { RuleFamily } from "../../rules/definitions/payloads";
 import type { EngineReadyBundleContent } from "../../rules/bundle/engine-ready-bundle";
 import { engineInvariantViolation, type EngineError } from "../errors/engine-error";
 import { projectRuleFactView } from "../classify/fact-view";
 import { knownSpecialCaseGuard } from "../classify/special-case-guard";
-import { runProductGate } from "../classify/product-gate";
+import { runProductCoveragePrecheck } from "../classify/product-coverage";
+import { runProductPolicyGate } from "../classify/product-policy-gate";
 import { runClassificationStage } from "../classify/classification-stage";
 import { canonicalModifiers, deriveStructuralModifiers, visaModifiers } from "../modifiers/structural-modifiers";
 import { runProcedureStage } from "../procedures/procedure-stage";
@@ -86,19 +88,11 @@ export function evaluateCase(
   const blockingPaths: BlockingFactPath[] = [];
   const verificationFlags: VerificationFlag[] = [];
 
-  /* -- structural modifiers, special-case guard, product coverage --------- */
+  /* -- stage 1: product coverage precheck --------------------------------- */
   const guard = knownSpecialCaseGuard(facts);
-  const product = runProductGate(facts, bundle, guard);
-  for (const path of product.blockingFactPaths) {
+  const coverage = runProductCoveragePrecheck(facts, bundle, guard);
+  for (const path of coverage.blockingFactPaths) {
     blockingPaths.push({ path, slotFamily: "PRODUCT_COVERAGE" });
-  }
-  if (product.assessment.coverageState === "RESEARCH_REQUIRED") {
-    verificationFlags.push({
-      code: "PRODUCT_COVERAGE_RESEARCH_REQUIRED",
-      target: { kind: "CASE" },
-      reason: "UNKNOWN",
-      provenance: [],
-    });
   }
 
   /* -- legal classification ---------------------------------------------- */
@@ -240,13 +234,56 @@ export function evaluateCase(
       ? ({ state: "STATUS_REVIEW_REQUIRED", classification: null } as const)
       : classification.value.residence;
 
-  /* -- case type resolution ------------------------------------------------ */
-  const structuralCaseType = resolveStructuralCaseType(facts, product.assessment.coverageState, guard.state);
+  /* -- case type resolution (stage 2 result) ------------------------------- */
+  const structuralCaseType = resolveStructuralCaseType(facts, coverage.decision.state, guard.state);
   const caseType: CaseType | null = structuralCaseType ?? classification.value.ruleCaseType;
 
+  /* -- stage 3: product policy gate ---------------------------------------- */
+  const policy = runProductPolicyGate(
+    {
+      desiredProcedure: facts.classification.desiredProcedure,
+      coverageCountry: coverage.view.coverageCountry,
+      coverageState: coverage.decision.state,
+      caseType,
+    },
+    coverage.decision,
+    bundle,
+  );
+  if (!policy.ok) {
+    return policy;
+  }
+
   const warnings: Warning[] = [...warningStage.value.warnings];
-  if (product.assessment.warnings.includes("PARTIAL_COVERAGE")) {
-    warnings.push({ code: "PRODUCT_SCOPE_PARTIAL", severity: "INFO", qualifier: null, provenance: [] });
+  const productEffects: readonly AppliedProductPolicyEffect[] = policy.value.effects;
+  let policyDeclaredUnsupported = false;
+  for (const applied of productEffects) {
+    switch (applied.effect.kind) {
+      case "UNSUPPORTED":
+        policyDeclaredUnsupported = true;
+        break;
+      case "VERIFICATION_REQUIRED":
+        verificationFlags.push({
+          code: applied.effect.code,
+          target: { kind: "CASE" },
+          reason: "UNKNOWN",
+          provenance: [],
+        });
+        break;
+      case "BLOCKING":
+        blockingPaths.push({
+          issueCode: applied.effect.code,
+          slotFamily: "PRODUCT_POLICY",
+        });
+        break;
+      case "WARNING":
+        warnings.push({
+          code: "PRODUCT_SCOPE_PARTIAL",
+          severity: "INFO",
+          qualifier: applied.effect.code,
+          provenance: [],
+        });
+        break;
+    }
   }
 
   const blockingIssues = buildBlockingIssues(blockingPaths);
@@ -255,7 +292,8 @@ export function evaluateCase(
   }
 
   const unsupported =
-    product.assessment.coverageState === "NOT_SUPPORTED" ||
+    policyDeclaredUnsupported ||
+    coverage.decision.state === "NOT_SUPPORTED" ||
     caseType === "COUNTRY_NOT_SUPPORTED" ||
     caseType === "NOT_FIRST_CEDULA";
 
@@ -342,9 +380,29 @@ export function evaluateCase(
     return costEstimate;
   }
 
+  const reasonCodes = classificationReasonCodes({
+    caseType,
+    structuralCaseType,
+    ruleCaseType: classification.value.ruleCaseType,
+    coverageState: coverage.decision.state,
+    policyDeclaredUnsupported,
+    hasBlockingIssues: issues.length > 0,
+    hasVerificationFlags: flags.length > 0,
+  });
+
   return ok({
     residenceClassification: residenceResult,
-    caseClassification: { caseType, status },
+    productAssessment: { coverage: coverage.decision, effects: productEffects },
+    caseClassification: {
+      caseType,
+      status,
+      reasonCodes,
+      provenance: {
+        rules: classification.value.caseTypeProvenance,
+        productPolicies: productEffects.map((applied) => applied.provenance),
+        productCoverages: coverage.decision.provenance,
+      },
+    },
     applicablePathway,
     modifiers,
     blockingIssues: issues,
@@ -393,4 +451,53 @@ function resolveStructuralCaseType(
     return "SPECIAL_CASE";
   }
   return null;
+}
+
+/**
+ * Why the case ended up with this type and status.
+ *
+ * Structural reasons first, because they are the ones a user is most likely to
+ * be surprised by - "we do not serve your country" is a very different message
+ * from "we could not classify your case" - and then the two open-work reasons,
+ * which say what would have to happen for the answer to change.
+ */
+function classificationReasonCodes(
+  input: Readonly<{
+    caseType: CaseType | null;
+    structuralCaseType: CaseType | null;
+    ruleCaseType: CaseType | null;
+    coverageState: string;
+    policyDeclaredUnsupported: boolean;
+    hasBlockingIssues: boolean;
+    hasVerificationFlags: boolean;
+  }>,
+): readonly CaseClassificationReasonCode[] {
+  const codes = new Set<CaseClassificationReasonCode>();
+
+  if (input.structuralCaseType === "NOT_FIRST_CEDULA") {
+    codes.add(
+      input.caseType === "NOT_FIRST_CEDULA" && input.coverageState !== "NOT_SUPPORTED"
+        ? "PREVIOUS_CEDULA_DECLARED"
+        : "PROCEDURE_OUT_OF_PRODUCT_SCOPE",
+    );
+  }
+  if (input.structuralCaseType === "COUNTRY_NOT_SUPPORTED") {
+    codes.add("COUNTRY_OUT_OF_PRODUCT_SCOPE");
+  }
+  if (input.structuralCaseType === "SPECIAL_CASE") {
+    codes.add("SPECIAL_CASE_BYPASS");
+  }
+  if (input.policyDeclaredUnsupported) {
+    codes.add("PRODUCT_POLICY_DECLINED");
+  }
+  if (input.structuralCaseType === null) {
+    codes.add(input.ruleCaseType === null ? "NO_RULE_CLASSIFIED_THE_CASE" : "CLASSIFIED_BY_RULE");
+  }
+  if (input.hasBlockingIssues) {
+    codes.add("USER_INFORMATION_MISSING");
+  }
+  if (input.hasVerificationFlags) {
+    codes.add("OFFICIAL_VERIFICATION_OPEN");
+  }
+  return [...codes].sort();
 }

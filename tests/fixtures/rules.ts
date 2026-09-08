@@ -13,7 +13,13 @@ import type {
   PathwayDefinitionRevision,
   ProductCoverageRevision,
   ProductPolicyRevision,
+  ProductPolicyRule,
 } from "../../src/domain/product/product";
+import {
+  PATHWAY_PAYLOAD_SCHEMA_VERSION,
+  PRODUCT_POLICY_PAYLOAD_SCHEMA_VERSION,
+} from "../../src/domain/product/product";
+import { CURRENT_ENGINE_DESCRIPTOR } from "../../src/domain/evaluation/engine-descriptor";
 import type { LocalDate } from "../../src/domain/primitives/local-date";
 import { unwrapOrThrow } from "../../src/shared/result/result";
 import { id, testUuid } from "./ids";
@@ -39,7 +45,13 @@ export function testSourceRevision(): SourceRevision {
     sourceId: id("synthetic.test.source"),
     publicationStatus: "PUBLISHED",
     language: id("es"),
+    publishedAt: null,
     retrievedAt: id("2026-01-01T00:00:00Z"),
+    effectiveFrom: null,
+    effectiveUntil: null,
+    supersedes: null,
+    confidence: "HIGH",
+    notes: null,
     locator: "synthetic://test-source",
   };
 }
@@ -99,7 +111,17 @@ export function rule(
       precedence: options.precedence ?? payload.precedence,
       resolution,
     } as RulePayload,
-    evidence: resolved ? [{ sourceRevisionId: id(TEST_SOURCE_REVISION_ID), citationDetail: "synthetic" }] : [],
+    evidence: resolved
+      ? [
+          {
+            sourceRevisionId: id(TEST_SOURCE_REVISION_ID),
+            role: "SUPPORTS",
+            claimSummary: "synthetic",
+            citationDetail: "synthetic",
+            quote: null,
+          },
+        ]
+      : [],
   };
 }
 
@@ -133,7 +155,11 @@ export function engineReadyBundle(
   extras: BundleExtras = {},
 ): EngineReadyBundleContent {
   return unwrapOrThrow(
-    prepareEngineReadyBundle(bundleContent(rules, extras), effectiveLocalDate as LocalDate),
+    prepareEngineReadyBundle(
+      bundleContent(rules, extras),
+      effectiveLocalDate as LocalDate,
+      CURRENT_ENGINE_DESCRIPTOR,
+    ),
   );
 }
 
@@ -154,21 +180,50 @@ export function supportedCoverage(
   };
 }
 
-export function firstCedulaPolicy(): ProductPolicyRevision {
+/**
+ * The minimal policy every engine test needs.
+ *
+ * It declares the product serves first-cedula cases, and gives the two
+ * coverage states that must be governed explicitly - PARTIAL and
+ * RESEARCH_REQUIRED - the effects they need. Without those two rules the
+ * engine refuses to evaluate a partial or unresearched case, which is exactly
+ * the behaviour under test elsewhere.
+ */
+export function firstCedulaPolicy(
+  rules: readonly ProductPolicyRule[] = DEFAULT_POLICY_RULES,
+): ProductPolicyRevision {
   return {
     productPolicyRevisionId: id(testUuid(7999)),
     productPolicyId: id("synthetic.policy.mvp"),
     publicationStatus: "PUBLISHED",
     validFrom: "2000-01-01" as LocalDate,
     validUntil: null,
-    supportedDesiredProcedures: ["FIRST_CEDULA"],
+    payloadSchemaVersion: PRODUCT_POLICY_PAYLOAD_SCHEMA_VERSION,
+    payload: { supportedDesiredProcedures: ["FIRST_CEDULA"], rules },
   };
 }
+
+export function anyCase(): ProductPolicyRule["condition"] {
+  return { coverageStates: [], desiredProcedures: [], countries: [], caseTypes: [] };
+}
+
+export const DEFAULT_POLICY_RULES: readonly ProductPolicyRule[] = [
+  {
+    policyRuleKey: "partial-coverage-warning",
+    condition: { ...anyCase(), coverageStates: ["PARTIAL"] },
+    effect: { kind: "WARNING", code: "PARTIAL_COVERAGE" },
+  },
+  {
+    policyRuleKey: "research-required",
+    condition: { ...anyCase(), coverageStates: ["RESEARCH_REQUIRED"] },
+    effect: { kind: "VERIFICATION_REQUIRED", code: "PRODUCT_COVERAGE_RESEARCH_REQUIRED" },
+  },
+];
 
 export function pathway(
   pathwayId: string,
   appliesToCaseTypes: readonly string[],
-  sections: PathwayDefinitionRevision["sections"] = [],
+  sections: PathwayDefinitionRevision["payload"]["sections"] = [],
 ): PathwayDefinitionRevision {
   ruleCounter += 1;
   return {
@@ -178,8 +233,8 @@ export function pathway(
     publicationStatus: "PUBLISHED",
     validFrom: "2000-01-01" as LocalDate,
     validUntil: null,
-    appliesToCaseTypes,
-    sections,
+    payloadSchemaVersion: PATHWAY_PAYLOAD_SCHEMA_VERSION,
+    payload: { appliesToCaseTypes, sections },
   };
 }
 

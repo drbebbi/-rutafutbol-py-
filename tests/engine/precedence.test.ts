@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { CURRENT_ENGINE_DESCRIPTOR } from "../../src/domain/evaluation/engine-descriptor";
 import { userCaseFacts } from "../fixtures/facts";
 import { alwaysTrue, bundleContent, firstCedulaPolicy, pathway, resetRuleCounter, rule, supportedCoverage } from "../fixtures/rules";
 import { caseTypePayload, feePayload, procedurePayload, visaPayload } from "../fixtures/payloads";
@@ -188,7 +189,7 @@ describe("direct dominance", () => {
       rule("r.a", caseTypePayload(A), { precedence: [{ relation: "OVERRIDES", overRuleId: id("r.b") }] }),
       rule("r.b", caseTypePayload(B), { precedence: [{ relation: "OVERRIDES", overRuleId: id("r.a") }] }),
     ];
-    const bundle = prepareEngineReadyBundle(bundleContent(rules, extras), "2026-06-15" as LocalDate);
+    const bundle = prepareEngineReadyBundle(bundleContent(rules, extras), "2026-06-15" as LocalDate, CURRENT_ENGINE_DESCRIPTOR);
     expect(bundle.ok).toBe(false);
   });
 });

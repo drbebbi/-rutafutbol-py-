@@ -24,7 +24,7 @@ function sectionOrderFor(
   definition: PathwayDefinitionRevision,
   procedureKey: string,
 ): number | null {
-  const sections = [...definition.sections].sort((a, b) => a.order - b.order);
+  const sections = [...definition.payload.sections].sort((a, b) => a.order - b.order);
   for (const section of sections) {
     if (section.procedureKeyPatterns.some((pattern) => procedureKey.startsWith(pattern))) {
       return section.order;
@@ -55,7 +55,7 @@ export function selectPathway(
       (definition) =>
         isBundleEligible(definition.publicationStatus) &&
         withinWindow(definition.validFrom, definition.validUntil, bundle.effectiveLocalDate) &&
-        definition.appliesToCaseTypes.includes(caseType),
+        definition.payload.appliesToCaseTypes.includes(caseType),
     )
     .sort((a, b) => compareStrings(a.pathwayId as string, b.pathwayId as string));
 

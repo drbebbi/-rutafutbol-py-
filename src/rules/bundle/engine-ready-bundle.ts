@@ -9,8 +9,9 @@ import type {
 } from "../../domain/product/product";
 import type { SourceRevision } from "../../domain/sources/source";
 import { isBundleEligible } from "../../domain/rules/publication";
+import type { EngineDescriptor } from "../../domain/evaluation/engine-descriptor";
+import { supportsSchemaVersion } from "../../domain/evaluation/engine-descriptor";
 import type { RuleRevision } from "../definitions/rule-revision";
-import { RULE_PAYLOAD_SCHEMA_VERSION } from "../definitions/rule-revision";
 import { validateRuleRevisionStructure, type RuleValidationIssue } from "../validation/structural-validation";
 import { validatePrecedenceGraph, type PrecedenceIssue } from "../conflicts/precedence-validation";
 import { EVALUATION_BUNDLE_SCHEMA_VERSION, type EvaluationBundleContent } from "./bundle-content";
@@ -24,6 +25,8 @@ export type BundleValidationIssue =
 export type BundleIssueCode =
   | "UNSUPPORTED_BUNDLE_SCHEMA_VERSION"
   | "UNSUPPORTED_RULE_PAYLOAD_VERSION"
+  | "UNSUPPORTED_PRODUCT_POLICY_VERSION"
+  | "UNSUPPORTED_PATHWAY_VERSION"
   | "INELIGIBLE_PUBLICATION_STATUS"
   | "RULE_OUTSIDE_EFFECTIVE_WINDOW"
   | "DUPLICATE_RULE_IDENTITY"
@@ -69,6 +72,7 @@ function withinWindow(validFrom: LocalDate, validUntil: LocalDate | null, on: Lo
 export function prepareEngineReadyBundle(
   content: EvaluationBundleContent,
   effectiveLocalDate: LocalDate,
+  engine: EngineDescriptor,
 ): Result<EngineReadyBundleContent, readonly BundleValidationIssue[]> {
   const issues: BundleValidationIssue[] = [];
 
@@ -89,7 +93,7 @@ export function prepareEngineReadyBundle(
   const seenRuleIds = new Set<string>();
 
   for (const revision of content.ruleRevisions) {
-    if ((revision.payloadSchemaVersion as string) !== (RULE_PAYLOAD_SCHEMA_VERSION as string)) {
+    if (!supportsSchemaVersion(engine.supportedRulePayloadSchemaVersions, revision.payloadSchemaVersion)) {
       issues.push({
         kind: "BUNDLE",
         code: "UNSUPPORTED_RULE_PAYLOAD_VERSION",
@@ -136,6 +140,31 @@ export function prepareEngineReadyBundle(
       }
     }
     eligible.push(revision);
+  }
+
+  /*
+   * Authored artefacts are checked against the engine descriptor, not against
+   * a single constant: rules, product policies and pathway definitions version
+   * independently, and a build that cannot interpret one of them must say so
+   * rather than read it with the wrong expectations.
+   */
+  for (const policy of content.productPolicyRevisions) {
+    if (!supportsSchemaVersion(engine.supportedProductPolicySchemaVersions, policy.payloadSchemaVersion)) {
+      issues.push({
+        kind: "BUNDLE",
+        code: "UNSUPPORTED_PRODUCT_POLICY_VERSION",
+        detail: `product policy "${policy.productPolicyId}" uses payload schema ${policy.payloadSchemaVersion}`,
+      });
+    }
+  }
+  for (const definition of content.pathwayDefinitionRevisions) {
+    if (!supportsSchemaVersion(engine.supportedPathwaySchemaVersions, definition.payloadSchemaVersion)) {
+      issues.push({
+        kind: "BUNDLE",
+        code: "UNSUPPORTED_PATHWAY_VERSION",
+        detail: `pathway definition "${definition.pathwayDefinitionId}" uses payload schema ${definition.payloadSchemaVersion}`,
+      });
+    }
   }
 
   for (const precedenceIssue of validatePrecedenceGraph(eligible)) {

@@ -12,6 +12,7 @@ import {
 import { caseTypePayload, procedurePayload } from "../fixtures/payloads";
 import { canonicalizeBundleContent, evaluationBundleContentHash } from "../../src/rules/bundle/canonical-bundle";
 import { prepareEngineReadyBundle } from "../../src/rules/bundle/engine-ready-bundle";
+import { CURRENT_ENGINE_DESCRIPTOR } from "../../src/domain/evaluation/engine-descriptor";
 import type { LocalDate } from "../../src/domain/primitives/local-date";
 import { id } from "../fixtures/ids";
 
@@ -89,6 +90,7 @@ describe("engine-ready bundle preparation", () => {
     const prepared = prepareEngineReadyBundle(
       bundleContent([rule("r.a", caseTypePayload("STANDARD_FIRST_CEDULA_FROM_NONE"))]),
       on,
+      CURRENT_ENGINE_DESCRIPTOR,
     );
     expect(prepared.ok && (prepared.value.effectiveLocalDate as string)).toBe("2026-06-15");
   });
@@ -99,6 +101,7 @@ describe("engine-ready bundle preparation", () => {
         rule("r.a", caseTypePayload("STANDARD_FIRST_CEDULA_FROM_NONE"), { publicationStatus: "DRAFT" }),
       ]),
       on,
+      CURRENT_ENGINE_DESCRIPTOR,
     );
     expect(prepared.ok).toBe(false);
     expect(!prepared.ok && prepared.error.some((issue) => issue.kind === "BUNDLE" && issue.code === "INELIGIBLE_PUBLICATION_STATUS")).toBe(true);
@@ -113,6 +116,7 @@ describe("engine-ready bundle preparation", () => {
         }),
       ]),
       on,
+      CURRENT_ENGINE_DESCRIPTOR,
     );
     expect(prepared.ok).toBe(true);
   });
@@ -125,6 +129,7 @@ describe("engine-ready bundle preparation", () => {
         }),
       ]),
       on,
+      CURRENT_ENGINE_DESCRIPTOR,
     );
     expect(!prepared.ok && prepared.error.some((issue) => issue.kind === "BUNDLE" && issue.code === "RULE_OUTSIDE_EFFECTIVE_WINDOW")).toBe(true);
   });
@@ -137,6 +142,7 @@ describe("engine-ready bundle preparation", () => {
         rule("r.a", caseTypePayload("STANDARD_FIRST_CEDULA_FROM_TEMPORAL")),
       ]),
       on,
+      CURRENT_ENGINE_DESCRIPTOR,
     );
     expect(!prepared.ok && prepared.error.some((issue) => issue.kind === "BUNDLE" && issue.code === "DUPLICATE_RULE_IDENTITY")).toBe(true);
   });
@@ -146,6 +152,7 @@ describe("engine-ready bundle preparation", () => {
     const prepared = prepareEngineReadyBundle(
       { ...bundleContent([revision]), evidence: [] },
       on,
+      CURRENT_ENGINE_DESCRIPTOR,
     );
     expect(!prepared.ok && prepared.error.some((issue) => issue.kind === "BUNDLE" && issue.code === "MISSING_EVIDENCE_SOURCE_REVISION")).toBe(true);
   });
@@ -156,6 +163,7 @@ describe("engine-ready bundle preparation", () => {
         feeIndexRevisions: [feeIndexRevision("synthetic.jornal", 1), feeIndexRevision("synthetic.jornal", 2)],
       }),
       on,
+      CURRENT_ENGINE_DESCRIPTOR,
     );
     expect(!prepared.ok && prepared.error.some((issue) => issue.kind === "BUNDLE" && issue.code === "OVERLAPPING_FEE_INDEX_REVISIONS")).toBe(true);
   });
@@ -164,6 +172,7 @@ describe("engine-ready bundle preparation", () => {
     const prepared = prepareEngineReadyBundle(
       { ...bundleContent([]), schemaVersion: "evaluation-bundle@9.9" as never },
       on,
+      CURRENT_ENGINE_DESCRIPTOR,
     );
     expect(!prepared.ok && prepared.error.some((issue) => issue.kind === "BUNDLE" && issue.code === "UNSUPPORTED_BUNDLE_SCHEMA_VERSION")).toBe(true);
   });
@@ -173,6 +182,7 @@ describe("engine-ready bundle preparation", () => {
     const prepared = prepareEngineReadyBundle(
       bundleContent([{ ...revision, payloadSchemaVersion: "rule-payload@9.9" as never }]),
       on,
+      CURRENT_ENGINE_DESCRIPTOR,
     );
     expect(!prepared.ok && prepared.error.some((issue) => issue.kind === "BUNDLE" && issue.code === "UNSUPPORTED_RULE_PAYLOAD_VERSION")).toBe(true);
   });
@@ -183,6 +193,7 @@ describe("engine-ready bundle preparation", () => {
         evidence: [testSourceRevision()],
       }),
       on,
+      CURRENT_ENGINE_DESCRIPTOR,
     );
     expect(prepared.ok && prepared.value.ruleRevisionByRuleId.has("r.a")).toBe(true);
     expect(prepared.ok && prepared.value.evidenceBySourceRevisionId.size).toBe(1);
@@ -194,6 +205,7 @@ describe("engine-ready bundle preparation", () => {
     const prepared = prepareEngineReadyBundle(
       bundleContent([{ ...revision, evidence: [] }], { evidence: [] }),
       on,
+      CURRENT_ENGINE_DESCRIPTOR,
     );
     expect(!prepared.ok && prepared.error.some((issue) => issue.kind === "RULE")).toBe(true);
   });
@@ -206,6 +218,7 @@ describe("engine-ready bundle preparation", () => {
         }),
       ]),
       on,
+      CURRENT_ENGINE_DESCRIPTOR,
     );
     expect(!prepared.ok && prepared.error.some((issue) => issue.kind === "PRECEDENCE")).toBe(true);
   });

@@ -1,13 +1,20 @@
 import { err, ok, type Result } from "../../shared/result/result";
-import type { BlockingIssue } from "../../domain/evaluation/issues";
+import type { BlockingIssue, BlockingIssueCode } from "../../domain/evaluation/issues";
 import { blockingIssueCodeForPath, type RuleFactPath } from "../../rules/definitions/fact-paths";
 import { compareStrings } from "../canonicalization/ordering";
 import { engineInvariantViolation, type EngineError } from "../errors/engine-error";
 
-export type BlockingFactPath = Readonly<{
-  path: RuleFactPath;
-  slotFamily: string;
-}>;
+/**
+ * Something that is blocking a decision.
+ *
+ * Usually an indeterminate fact path, translated through the closed registry.
+ * A product policy may also block directly on a code, because its condition
+ * language has no fact paths - but it draws that code from the very same
+ * closed registry, so there is still no route to a free-text "missing field".
+ */
+export type BlockingFactPath =
+  | Readonly<{ path: RuleFactPath; slotFamily: string }>
+  | Readonly<{ issueCode: BlockingIssueCode; slotFamily: string }>;
 
 /**
  * Turns decision-relevant indeterminate fact paths into blocking issues.
@@ -21,6 +28,13 @@ export function buildBlockingIssues(
 ): Result<readonly BlockingIssue[], EngineError> {
   const byKey = new Map<string, BlockingIssue>();
   for (const entry of paths) {
+    if ("issueCode" in entry) {
+      byKey.set(`${entry.issueCode}|${entry.slotFamily}`, {
+        code: entry.issueCode,
+        blockedSlotFamily: entry.slotFamily,
+      });
+      continue;
+    }
     const code = blockingIssueCodeForPath(entry.path);
     if (code === null) {
       return err(

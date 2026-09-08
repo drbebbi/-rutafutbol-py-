@@ -70,7 +70,11 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
   }
 
-  const bundle = prepareEngineReadyBundle(syntheticKnowledgeBundle(), context.value.effectiveLocalDate);
+  const bundle = prepareEngineReadyBundle(
+    syntheticKnowledgeBundle(),
+    context.value.effectiveLocalDate,
+    CURRENT_ENGINE_DESCRIPTOR,
+  );
   if (!bundle.ok) {
     return NextResponse.json(
       { ok: false, code: "EVALUATION_FAILED", message: "Evaluation failed", correlationId },

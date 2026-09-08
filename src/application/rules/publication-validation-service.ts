@@ -92,11 +92,11 @@ export function validatePublicationCandidate(
 
   // 2..8. Fact-path access, evidence, precedence, cycles, semantics and
   // conflicts are all enforced while turning the bundle engine-ready.
-  const candidateBundle = prepareEngineReadyBundle(candidate, effectiveLocalDate);
+  const candidateBundle = prepareEngineReadyBundle(candidate, effectiveLocalDate, CURRENT_ENGINE_DESCRIPTOR);
   if (!candidateBundle.ok) {
     return err({ kind: "BUNDLE", issues: candidateBundle.error });
   }
-  const baselineBundle = prepareEngineReadyBundle(baseline, effectiveLocalDate);
+  const baselineBundle = prepareEngineReadyBundle(baseline, effectiveLocalDate, CURRENT_ENGINE_DESCRIPTOR);
 
   // 9. Safety corpus impact.
   const perCase: CaseImpact[] = [];

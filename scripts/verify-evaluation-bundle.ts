@@ -1,5 +1,6 @@
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { CURRENT_ENGINE_DESCRIPTOR } from "../src/domain/evaluation/engine-descriptor";
 import { evaluationBundleContentSchema } from "../src/rules/validation/schemas";
 import { canonicalizeBundleContent, evaluationBundleContentHash } from "../src/rules/bundle/canonical-bundle";
 import { prepareEngineReadyBundle } from "../src/rules/bundle/engine-ready-bundle";
@@ -57,7 +58,7 @@ if (existsSync(directory)) {
       console.error(`[canonical] ${name}: canonicalisation is not idempotent`);
     }
 
-    const ready = prepareEngineReadyBundle(content, effectiveLocalDate);
+    const ready = prepareEngineReadyBundle(content, effectiveLocalDate, CURRENT_ENGINE_DESCRIPTOR);
     if (!ready.ok) {
       failures += 1;
       console.error(`[bundle] ${name}: not engine-ready on ${effectiveLocalDate}`);

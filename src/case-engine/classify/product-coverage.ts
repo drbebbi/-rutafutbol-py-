@@ -2,25 +2,24 @@ import type { CountryCode } from "../../domain/primitives/country";
 import type { LocalDate } from "../../domain/primitives/local-date";
 import type { UserCaseFacts } from "../../domain/case/user-case-facts";
 import type {
-  ProductAssessment,
-  ProductBlockerCode,
+  ProductCoverageDecision,
+  ProductCoverageProvenance,
   ProductCoverageRevision,
-  ProductPolicyRevision,
-  ProductWarningCode,
 } from "../../domain/product/product";
 import { isBundleEligible } from "../../domain/rules/publication";
 import type { RuleFactPath } from "../../rules/definitions/fact-paths";
 import type { EngineReadyBundleContent } from "../../rules/bundle/engine-ready-bundle";
+import { compareStrings } from "../canonicalization/ordering";
 import type { SpecialCaseGuardResult } from "./special-case-guard";
 
 /**
- * The product policy fact view.
+ * The facts stage 1 is allowed to look at.
  *
  * Deliberately separate from `RuleFactView`: legal rules must not be able to
- * read product decisions, and product policy must not be able to read the
+ * read product decisions, and product coverage must not be able to read the
  * document readiness a legal rule is forbidden to see either.
  */
-export type ProductPolicyFactView = Readonly<{
+export type ProductCoverageFactView = Readonly<{
   desiredProcedure: UserCaseFacts["classification"]["desiredProcedure"];
   coverageCountry: CountryCode | null;
   coverageCountryBlockedBy: RuleFactPath | null;
@@ -33,7 +32,7 @@ export type ProductPolicyFactView = Readonly<{
  * otherwise their citizenship - but only when there is exactly one, because a
  * dual national's coverage genuinely depends on which passport they use.
  */
-export function projectProductPolicyFactView(facts: UserCaseFacts): ProductPolicyFactView {
+export function projectProductCoverageFactView(facts: UserCaseFacts): ProductCoverageFactView {
   const classification = facts.classification;
   const processCountry = classification.processTravelDocumentCountry;
   if (processCountry.state === "KNOWN") {
@@ -68,7 +67,7 @@ export function projectProductPolicyFactView(facts: UserCaseFacts): ProductPolic
   };
 }
 
-function withinWindow(
+export function withinWindow(
   validFrom: LocalDate,
   validUntil: LocalDate | null,
   on: LocalDate,
@@ -80,52 +79,46 @@ function withinWindow(
   return validUntil === null || date <= (validUntil as string);
 }
 
-export type ProductGateResult = Readonly<{
-  assessment: ProductAssessment;
-  view: ProductPolicyFactView;
+export type ProductCoverageResult = Readonly<{
+  decision: ProductCoverageDecision;
+  view: ProductCoverageFactView;
   blockingFactPaths: readonly RuleFactPath[];
 }>;
 
+function provenanceOf(revisions: readonly ProductCoverageRevision[]): readonly ProductCoverageProvenance[] {
+  return [...revisions]
+    .map((revision) => ({
+      productCoverageId: revision.productCoverageId,
+      productCoverageRevisionId: revision.productCoverageRevisionId,
+    }))
+    .sort((a, b) =>
+      compareStrings(
+        a.productCoverageRevisionId as string,
+        b.productCoverageRevisionId as string,
+      ),
+    );
+}
+
 /**
- * Product coverage precheck.
+ * Stage 1: the product coverage precheck.
  *
- * A ProductPolicy may declare a case unsupported, demand research or warn. It
- * may never create a required procedure, a required document, an official fee
- * or a legal formality, and it may never displace a legal rule - which is why
- * this function returns an assessment and nothing else.
+ * Reads the coverage table and nothing else. It answers one question - what
+ * has the product said about this country and procedure - and it answers it
+ * before any legal classification runs, so a classification can never be
+ * shaped by what the product happens to support.
  */
-export function runProductGate(
+export function runProductCoveragePrecheck(
   facts: UserCaseFacts,
   bundle: EngineReadyBundleContent,
   guard: SpecialCaseGuardResult,
-): ProductGateResult {
-  const view = projectProductPolicyFactView(facts);
-  const blockers: ProductBlockerCode[] = [];
-  const warnings: ProductWarningCode[] = [];
+): ProductCoverageResult {
+  const view = projectProductCoverageFactView(facts);
   const blockingFactPaths: RuleFactPath[] = [];
-
-  const policies = bundle.productPolicyRevisions.filter(
-    (policy: ProductPolicyRevision) =>
-      isBundleEligible(policy.publicationStatus) &&
-      withinWindow(policy.validFrom, policy.validUntil, bundle.effectiveLocalDate),
-  );
-  const procedureSupported =
-    policies.length === 0 ||
-    policies.some((policy) => policy.supportedDesiredProcedures.includes(view.desiredProcedure));
-
-  if (!procedureSupported) {
-    blockers.push("PROCEDURE_OUT_OF_SCOPE");
-    return {
-      assessment: { coverageState: "NOT_SUPPORTED", blockers, warnings },
-      view,
-      blockingFactPaths,
-    };
-  }
 
   // A known special case is never terminated on country scope.
   if (guard.state === "CONFIRMED") {
     return {
-      assessment: { coverageState: "BYPASSED_SPECIAL_CASE", blockers, warnings },
+      decision: { state: "BYPASSED_SPECIAL_CASE", provenance: [] },
       view,
       blockingFactPaths,
     };
@@ -135,15 +128,11 @@ export function runProductGate(
     if (view.coverageCountryBlockedBy !== null) {
       blockingFactPaths.push(view.coverageCountryBlockedBy);
     }
-    return {
-      assessment: { coverageState: "INDETERMINATE", blockers, warnings },
-      view,
-      blockingFactPaths,
-    };
+    return { decision: { state: "INDETERMINATE", provenance: [] }, view, blockingFactPaths };
   }
 
   const coverage = bundle.productCoverageRevisions.filter(
-    (revision: ProductCoverageRevision) =>
+    (revision) =>
       isBundleEligible(revision.publicationStatus) &&
       withinWindow(revision.validFrom, revision.validUntil, bundle.effectiveLocalDate) &&
       revision.countryCode === view.coverageCountry &&
@@ -153,51 +142,42 @@ export function runProductGate(
   if (coverage.length === 0) {
     // No coverage statement is not the same as "not supported": the product
     // simply has not researched this combination yet.
-    blockers.push("RESEARCH_INCOMPLETE");
-    return {
-      assessment: { coverageState: "RESEARCH_REQUIRED", blockers, warnings },
-      view,
-      blockingFactPaths,
-    };
+    return { decision: { state: "RESEARCH_REQUIRED", provenance: [] }, view, blockingFactPaths };
   }
 
   const states = new Set(coverage.map((revision) => revision.state));
+  const decidedBy = (state: ProductCoverageRevision["state"]): readonly ProductCoverageProvenance[] =>
+    provenanceOf(coverage.filter((revision) => revision.state === state));
+
   if (states.has("NOT_SUPPORTED")) {
     // The special-case guard must have been asked first; an unanswered signal
     // means we cannot terminate the case yet.
     if (guard.state === "POSSIBLE_UNANSWERED") {
       blockingFactPaths.push("case.specialCase.paraguayanCitizenship");
-      return {
-        assessment: { coverageState: "INDETERMINATE", blockers, warnings },
-        view,
-        blockingFactPaths,
-      };
+      return { decision: { state: "INDETERMINATE", provenance: [] }, view, blockingFactPaths };
     }
-    blockers.push("COUNTRY_OUT_OF_SCOPE");
     return {
-      assessment: { coverageState: "NOT_SUPPORTED", blockers, warnings },
+      decision: { state: "NOT_SUPPORTED", provenance: decidedBy("NOT_SUPPORTED") },
       view,
       blockingFactPaths,
     };
   }
   if (states.has("RESEARCH_REQUIRED")) {
-    blockers.push("RESEARCH_INCOMPLETE");
     return {
-      assessment: { coverageState: "RESEARCH_REQUIRED", blockers, warnings },
+      decision: { state: "RESEARCH_REQUIRED", provenance: decidedBy("RESEARCH_REQUIRED") },
       view,
       blockingFactPaths,
     };
   }
   if (states.has("PARTIAL")) {
-    warnings.push("PARTIAL_COVERAGE");
     return {
-      assessment: { coverageState: "PARTIAL", blockers, warnings },
+      decision: { state: "PARTIAL", provenance: decidedBy("PARTIAL") },
       view,
       blockingFactPaths,
     };
   }
   return {
-    assessment: { coverageState: "SUPPORTED", blockers, warnings },
+    decision: { state: "SUPPORTED", provenance: decidedBy("SUPPORTED") },
     view,
     blockingFactPaths,
   };

@@ -61,7 +61,7 @@ export function runFixture(fixture: GoldenFixture): GoldenRun {
     throw new Error(`fixture ${fixture.id} has an unusable evaluatedAt`);
   }
   const context = contextResult.value;
-  const bundleResult = prepareEngineReadyBundle(loadRuleSet(fixture.ruleSet), context.effectiveLocalDate);
+  const bundleResult = prepareEngineReadyBundle(loadRuleSet(fixture.ruleSet), context.effectiveLocalDate, CURRENT_ENGINE_DESCRIPTOR);
   if (!bundleResult.ok) {
     throw new Error(`rule set ${fixture.ruleSet} is not engine-ready: ${JSON.stringify(bundleResult.error)}`);
   }

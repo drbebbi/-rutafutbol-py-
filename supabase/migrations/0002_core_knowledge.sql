@@ -75,8 +75,22 @@ create table core.source_revisions (
   source_id          core.slug not null references core.sources (source_id),
   publication_status core.publication_status not null,
   language           core.language_code not null,
+  -- Nullable on purpose: many official pages carry no publication date, and
+  -- inventing one would turn a gap in the source into a usable fact.
+  published_at       date,
   retrieved_at       timestamptz not null,
-  locator            text not null
+  -- When the wording applies, as opposed to when it was fetched.
+  effective_from     date,
+  effective_until    date,
+  supersedes         uuid references core.source_revisions (source_revision_id),
+  confidence         text not null default 'MEDIUM'
+                       check (confidence in ('HIGH', 'MEDIUM', 'LOW')),
+  notes              text,
+  locator            text not null,
+  constraint source_revisions_window_ordered check (
+    effective_until is null or effective_from is null or effective_until >= effective_from
+  ),
+  constraint source_revisions_not_self_superseding check (supersedes is null or supersedes <> source_revision_id)
 );
 
 create table core.rule_sets (
@@ -144,7 +158,13 @@ comment on column core.rule_revisions.payload is
 create table core.rule_evidence (
   rule_revision_id   uuid not null references core.rule_revisions (rule_revision_id) on delete cascade,
   source_revision_id uuid not null references core.source_revisions (source_revision_id),
+  -- A contradicting source is evidence too: it is the reason a rule is
+  -- CONFLICTING, and dropping it would erase why.
+  role               text not null default 'SUPPORTS'
+                       check (role in ('SUPPORTS', 'CONTRADICTS', 'CONTEXT')),
+  claim_summary      text not null,
   citation_detail    text not null,
+  quote              text,
   primary key (rule_revision_id, source_revision_id, citation_detail)
 );
 
@@ -182,8 +202,17 @@ create table core.product_policy_revisions (
   publication_status         core.publication_status not null,
   valid_from                 date not null,
   valid_until                date,
-  supported_desired_procedures core.desired_procedure[] not null,
-  constraint product_policy_revisions_window_ordered check (valid_until is null or valid_until >= valid_from)
+  payload_schema_version     core.schema_version not null,
+  -- Product scope and the closed set of effects it may produce, as data.
+  -- A ProductPolicy may decline to serve a case, ask for research, ask the
+  -- applicant a question or warn. It may never add a procedure, a document, a
+  -- formality or a fee, and the payload has no shape in which it could.
+  payload                    jsonb not null,
+  constraint product_policy_revisions_window_ordered check (valid_until is null or valid_until >= valid_from),
+  constraint product_policy_revisions_payload_shape check (
+    jsonb_typeof(payload -> 'supportedDesiredProcedures') = 'array'
+    and jsonb_typeof(payload -> 'rules') = 'array'
+  )
 );
 
 create table core.product_coverages (
@@ -215,9 +244,14 @@ create table core.pathway_definition_revisions (
   publication_status             core.publication_status not null,
   valid_from                     date not null,
   valid_until                    date,
-  applies_to_case_types          text[] not null,
-  sections                       jsonb not null default '[]'::jsonb,
-  constraint pathway_definition_revisions_window_ordered check (valid_until is null or valid_until >= valid_from)
+  payload_schema_version         core.schema_version not null,
+  -- Presentation only: which sections exist and how procedures are grouped.
+  payload                        jsonb not null,
+  constraint pathway_definition_revisions_window_ordered check (valid_until is null or valid_until >= valid_from),
+  constraint pathway_definition_revisions_payload_shape check (
+    jsonb_typeof(payload -> 'appliesToCaseTypes') = 'array'
+    and jsonb_typeof(payload -> 'sections') = 'array'
+  )
 );
 
 -- ---------------------------------------------------------------------------

@@ -59,7 +59,10 @@ const SYNTHETIC_BUNDLE = {
       "evidence": [
         {
           "sourceRevisionId": "00000000-0000-4000-8000-000000002329",
-          "citationDetail": "synthetic"
+          "citationDetail": "synthetic",
+          "role": "SUPPORTS",
+          "claimSummary": "synthetic",
+          "quote": null
         }
       ]
     },
@@ -99,7 +102,10 @@ const SYNTHETIC_BUNDLE = {
       "evidence": [
         {
           "sourceRevisionId": "00000000-0000-4000-8000-000000002329",
-          "citationDetail": "synthetic"
+          "citationDetail": "synthetic",
+          "role": "SUPPORTS",
+          "claimSummary": "synthetic",
+          "quote": null
         }
       ]
     },
@@ -139,7 +145,10 @@ const SYNTHETIC_BUNDLE = {
       "evidence": [
         {
           "sourceRevisionId": "00000000-0000-4000-8000-000000002329",
-          "citationDetail": "synthetic"
+          "citationDetail": "synthetic",
+          "role": "SUPPORTS",
+          "claimSummary": "synthetic",
+          "quote": null
         }
       ]
     },
@@ -179,7 +188,10 @@ const SYNTHETIC_BUNDLE = {
       "evidence": [
         {
           "sourceRevisionId": "00000000-0000-4000-8000-000000002329",
-          "citationDetail": "synthetic"
+          "citationDetail": "synthetic",
+          "role": "SUPPORTS",
+          "claimSummary": "synthetic",
+          "quote": null
         }
       ]
     },
@@ -218,7 +230,10 @@ const SYNTHETIC_BUNDLE = {
       "evidence": [
         {
           "sourceRevisionId": "00000000-0000-4000-8000-000000002329",
-          "citationDetail": "synthetic"
+          "citationDetail": "synthetic",
+          "role": "SUPPORTS",
+          "claimSummary": "synthetic",
+          "quote": null
         }
       ]
     },
@@ -259,7 +274,10 @@ const SYNTHETIC_BUNDLE = {
       "evidence": [
         {
           "sourceRevisionId": "00000000-0000-4000-8000-000000002329",
-          "citationDetail": "synthetic"
+          "citationDetail": "synthetic",
+          "role": "SUPPORTS",
+          "claimSummary": "synthetic",
+          "quote": null
         }
       ]
     },
@@ -295,7 +313,10 @@ const SYNTHETIC_BUNDLE = {
       "evidence": [
         {
           "sourceRevisionId": "00000000-0000-4000-8000-000000002329",
-          "citationDetail": "synthetic"
+          "citationDetail": "synthetic",
+          "role": "SUPPORTS",
+          "claimSummary": "synthetic",
+          "quote": null
         }
       ]
     },
@@ -343,7 +364,10 @@ const SYNTHETIC_BUNDLE = {
       "evidence": [
         {
           "sourceRevisionId": "00000000-0000-4000-8000-000000002329",
-          "citationDetail": "synthetic"
+          "citationDetail": "synthetic",
+          "role": "SUPPORTS",
+          "claimSummary": "synthetic",
+          "quote": null
         }
       ]
     },
@@ -384,7 +408,10 @@ const SYNTHETIC_BUNDLE = {
       "evidence": [
         {
           "sourceRevisionId": "00000000-0000-4000-8000-000000002329",
-          "citationDetail": "synthetic"
+          "citationDetail": "synthetic",
+          "role": "SUPPORTS",
+          "claimSummary": "synthetic",
+          "quote": null
         }
       ]
     },
@@ -428,7 +455,10 @@ const SYNTHETIC_BUNDLE = {
       "evidence": [
         {
           "sourceRevisionId": "00000000-0000-4000-8000-000000002329",
-          "citationDetail": "synthetic"
+          "citationDetail": "synthetic",
+          "role": "SUPPORTS",
+          "claimSummary": "synthetic",
+          "quote": null
         }
       ]
     },
@@ -471,7 +501,10 @@ const SYNTHETIC_BUNDLE = {
       "evidence": [
         {
           "sourceRevisionId": "00000000-0000-4000-8000-000000002329",
-          "citationDetail": "synthetic"
+          "citationDetail": "synthetic",
+          "role": "SUPPORTS",
+          "claimSummary": "synthetic",
+          "quote": null
         }
       ]
     },
@@ -517,7 +550,10 @@ const SYNTHETIC_BUNDLE = {
       "evidence": [
         {
           "sourceRevisionId": "00000000-0000-4000-8000-000000002329",
-          "citationDetail": "synthetic"
+          "citationDetail": "synthetic",
+          "role": "SUPPORTS",
+          "claimSummary": "synthetic",
+          "quote": null
         }
       ]
     },
@@ -566,7 +602,10 @@ const SYNTHETIC_BUNDLE = {
       "evidence": [
         {
           "sourceRevisionId": "00000000-0000-4000-8000-000000002329",
-          "citationDetail": "synthetic"
+          "citationDetail": "synthetic",
+          "role": "SUPPORTS",
+          "claimSummary": "synthetic",
+          "quote": null
         }
       ]
     },
@@ -601,7 +640,10 @@ const SYNTHETIC_BUNDLE = {
       "evidence": [
         {
           "sourceRevisionId": "00000000-0000-4000-8000-000000002329",
-          "citationDetail": "synthetic"
+          "citationDetail": "synthetic",
+          "role": "SUPPORTS",
+          "claimSummary": "synthetic",
+          "quote": null
         }
       ]
     },
@@ -655,7 +697,13 @@ const SYNTHETIC_BUNDLE = {
       "publicationStatus": "PUBLISHED",
       "language": "es",
       "retrievedAt": "2026-01-01T00:00:00Z",
-      "locator": "synthetic://test-source"
+      "locator": "synthetic://test-source",
+      "publishedAt": null,
+      "effectiveFrom": null,
+      "effectiveUntil": null,
+      "supersedes": null,
+      "confidence": "HIGH",
+      "notes": null
     }
   ],
   "feeIndexRevisions": [
@@ -679,9 +727,44 @@ const SYNTHETIC_BUNDLE = {
       "publicationStatus": "PUBLISHED",
       "validFrom": "2000-01-01",
       "validUntil": null,
-      "supportedDesiredProcedures": [
-        "FIRST_CEDULA"
-      ]
+      "payloadSchemaVersion": "product-policy@1.0",
+      "payload": {
+        "supportedDesiredProcedures": [
+          "FIRST_CEDULA"
+        ],
+        "rules": [
+          {
+            "policyRuleKey": "partial-coverage-warning",
+            "condition": {
+              "coverageStates": [
+                "PARTIAL"
+              ],
+              "desiredProcedures": [],
+              "countries": [],
+              "caseTypes": []
+            },
+            "effect": {
+              "kind": "WARNING",
+              "code": "PARTIAL_COVERAGE"
+            }
+          },
+          {
+            "policyRuleKey": "research-required",
+            "condition": {
+              "coverageStates": [
+                "RESEARCH_REQUIRED"
+              ],
+              "desiredProcedures": [],
+              "countries": [],
+              "caseTypes": []
+            },
+            "effect": {
+              "kind": "VERIFICATION_REQUIRED",
+              "code": "PRODUCT_COVERAGE_RESEARCH_REQUIRED"
+            }
+          }
+        ]
+      }
     }
   ],
   "productCoverageRevisions": [
@@ -714,30 +797,33 @@ const SYNTHETIC_BUNDLE = {
       "publicationStatus": "PUBLISHED",
       "validFrom": "2000-01-01",
       "validUntil": null,
-      "appliesToCaseTypes": [
-        "STANDARD_FIRST_CEDULA_FROM_NONE",
-        "STANDARD_FIRST_CEDULA_FROM_TEMPORAL",
-        "SPECIAL_CASE",
-        "COUNTRY_NOT_SUPPORTED",
-        "NOT_FIRST_CEDULA",
-        "TEMPORAL_IDENTIFICACIONES_VERIFICATION_REQUIRED"
-      ],
-      "sections": [
-        {
-          "sectionKey": "residence",
-          "order": 1,
-          "procedureKeyPatterns": [
-            "rp1:syn.residencia-temporal"
-          ]
-        },
-        {
-          "sectionKey": "cedula",
-          "order": 2,
-          "procedureKeyPatterns": [
-            "rp1:syn.cedula-first"
-          ]
-        }
-      ]
+      "payloadSchemaVersion": "pathway-definition@1.0",
+      "payload": {
+        "appliesToCaseTypes": [
+          "STANDARD_FIRST_CEDULA_FROM_NONE",
+          "STANDARD_FIRST_CEDULA_FROM_TEMPORAL",
+          "SPECIAL_CASE",
+          "COUNTRY_NOT_SUPPORTED",
+          "NOT_FIRST_CEDULA",
+          "TEMPORAL_IDENTIFICACIONES_VERIFICATION_REQUIRED"
+        ],
+        "sections": [
+          {
+            "sectionKey": "residence",
+            "order": 1,
+            "procedureKeyPatterns": [
+              "rp1:syn.residencia-temporal"
+            ]
+          },
+          {
+            "sectionKey": "cedula",
+            "order": 2,
+            "procedureKeyPatterns": [
+              "rp1:syn.cedula-first"
+            ]
+          }
+        ]
+      }
     }
   ]
 } as unknown as EvaluationBundleContent;

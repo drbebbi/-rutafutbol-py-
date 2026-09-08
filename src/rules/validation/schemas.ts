@@ -6,7 +6,17 @@ import { REPORTED_RESIDENCE_TYPES } from "../../domain/residence/residence";
 import { PUBLICATION_STATUSES } from "../../domain/rules/publication";
 import { UNRESOLVED_REASONS, VERIFICATION_STATUSES } from "../../domain/rules/verification";
 import { FEE_TYPES } from "../../domain/fees/fee";
-import { VERIFICATION_CODES, WARNING_CODES } from "../../domain/evaluation/issues";
+import { EVIDENCE_ROLES, SOURCE_CONFIDENCES } from "../../domain/sources/source";
+import {
+  BLOCKING_ISSUE_CODES,
+  VERIFICATION_CODES,
+  WARNING_CODES,
+} from "../../domain/evaluation/issues";
+import {
+  PRODUCT_BLOCKER_CODES,
+  PRODUCT_COVERAGE_STATES,
+  PRODUCT_WARNING_CODES,
+} from "../../domain/product/product";
 import { COMPARE_OPERATORS, DATE_COMPARE_OPERATORS, TRUTH_VALUES } from "../definitions/ast";
 import type { CalendarPeriod, DateExpression, RuleConditionNode } from "../definitions/ast";
 import { ALL_RULE_FACT_PATHS } from "../definitions/fact-paths";
@@ -343,7 +353,10 @@ export const ruleRevisionSchema: z.ZodType<RuleRevision> = z.object({
   evidence: z.array(
     z.object({
       sourceRevisionId: uuidSchema<never>(),
+      role: z.enum(EVIDENCE_ROLES as unknown as [string, ...string[]]),
+      claimSummary: z.string().min(1).max(1024),
       citationDetail: z.string().min(1).max(512),
+      quote: z.string().max(2048).nullable(),
     }),
   ).max(32),
 }) as unknown as z.ZodType<RuleRevision>;
@@ -358,6 +371,34 @@ const effectiveWindow = {
 };
 
 const publicationStatusSchema = z.enum(PUBLICATION_STATUSES as unknown as [string, ...string[]]);
+
+const desiredProcedureSchema = z.enum(["FIRST_CEDULA", "CEDULA_RENEWAL", "CEDULA_REPLACEMENT"]);
+
+/**
+ * The closed product policy effect vocabulary, at the wire level.
+ *
+ * Nothing here can name a procedure, a document, a formality or a fee: a
+ * malformed policy that tried to smuggle one in is rejected before it reaches
+ * the domain, not caught later by convention.
+ */
+const productPolicyEffectSchema = z.union([
+  z.object({
+    kind: z.literal("UNSUPPORTED"),
+    blocker: z.enum(PRODUCT_BLOCKER_CODES as unknown as [string, ...string[]]),
+  }),
+  z.object({
+    kind: z.literal("VERIFICATION_REQUIRED"),
+    code: z.enum(VERIFICATION_CODES as unknown as [string, ...string[]]),
+  }),
+  z.object({
+    kind: z.literal("BLOCKING"),
+    code: z.enum(BLOCKING_ISSUE_CODES as unknown as [string, ...string[]]),
+  }),
+  z.object({
+    kind: z.literal("WARNING"),
+    code: z.enum(PRODUCT_WARNING_CODES as unknown as [string, ...string[]]),
+  }),
+]);
 
 export const evaluationBundleContentSchema: z.ZodType<EvaluationBundleContent> = z.object({
   schemaVersion: schemaVersionSchema<never>(),
@@ -376,7 +417,13 @@ export const evaluationBundleContentSchema: z.ZodType<EvaluationBundleContent> =
       sourceId: slugSchema<never>(),
       publicationStatus: publicationStatusSchema,
       language: brandedString<never>(/^[a-z]{2}$/u),
+      publishedAt: localDateSchema<never>().nullable(),
       retrievedAt: brandedString<never>(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/u),
+      effectiveFrom: localDateSchema<never>().nullable(),
+      effectiveUntil: localDateSchema<never>().nullable(),
+      supersedes: uuidSchema<never>().nullable(),
+      confidence: z.enum(SOURCE_CONFIDENCES as unknown as [string, ...string[]]),
+      notes: z.string().max(4096).nullable(),
       locator: z.string().min(1).max(2048),
     }),
   ),
@@ -396,9 +443,26 @@ export const evaluationBundleContentSchema: z.ZodType<EvaluationBundleContent> =
       productPolicyId: slugSchema<never>(),
       publicationStatus: publicationStatusSchema,
       ...effectiveWindow,
-      supportedDesiredProcedures: z.array(
-        z.enum(["FIRST_CEDULA", "CEDULA_RENEWAL", "CEDULA_REPLACEMENT"]),
-      ),
+      payloadSchemaVersion: schemaVersionSchema<never>(),
+      payload: z.object({
+        supportedDesiredProcedures: z.array(desiredProcedureSchema),
+        rules: z
+          .array(
+            z.object({
+              policyRuleKey: z.string().min(1).max(64),
+              condition: z.object({
+                coverageStates: z.array(
+                  z.enum(PRODUCT_COVERAGE_STATES as unknown as [string, ...string[]]),
+                ),
+                desiredProcedures: z.array(desiredProcedureSchema),
+                countries: z.array(countrySchema<never>()),
+                caseTypes: z.array(z.enum(CASE_TYPES as unknown as [string, ...string[]])),
+              }),
+              effect: productPolicyEffectSchema,
+            }),
+          )
+          .max(64),
+      }),
     }),
   ),
   productCoverageRevisions: z.array(
@@ -419,14 +483,17 @@ export const evaluationBundleContentSchema: z.ZodType<EvaluationBundleContent> =
       pathwayId: slugSchema<never>(),
       publicationStatus: publicationStatusSchema,
       ...effectiveWindow,
-      appliesToCaseTypes: z.array(z.enum(CASE_TYPES as unknown as [string, ...string[]])),
-      sections: z.array(
-        z.object({
-          sectionKey: z.string().min(1).max(64),
-          order: z.int().min(0).max(1000),
-          procedureKeyPatterns: z.array(z.string().min(1).max(256)).max(64),
-        }),
-      ),
+      payloadSchemaVersion: schemaVersionSchema<never>(),
+      payload: z.object({
+        appliesToCaseTypes: z.array(z.enum(CASE_TYPES as unknown as [string, ...string[]])),
+        sections: z.array(
+          z.object({
+            sectionKey: z.string().min(1).max(64),
+            order: z.int().min(0).max(1000),
+            procedureKeyPatterns: z.array(z.string().min(1).max(256)).max(64),
+          }),
+        ),
+      }),
     }),
   ),
 }) as unknown as z.ZodType<EvaluationBundleContent>;

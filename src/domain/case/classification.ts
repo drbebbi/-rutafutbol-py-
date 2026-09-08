@@ -1,3 +1,5 @@
+import type { DecisionProvenance } from "../evaluation/provenance";
+
 /**
  * Case types (Phase 2, final list).
  *
@@ -55,7 +57,42 @@ export const CLASSIFICATION_STATUSES: readonly ClassificationStatus[] = [
 export type CaseClassification = Readonly<{
   caseType: CaseType | null;
   status: ClassificationStatus;
+  /**
+   * Why the case landed on this type and status.
+   *
+   * A closed vocabulary rather than free text, so the reason can be shown,
+   * translated and tested. It is the difference between "we cannot classify
+   * this" and "we cannot classify this *because* nobody has researched your
+   * country yet".
+   */
+  reasonCodes: readonly CaseClassificationReasonCode[];
+  /** Which rules, policies and coverage statements produced the outcome. */
+  provenance: DecisionProvenance;
 }>;
+
+/** Why a case carries the type and status it does. */
+export type CaseClassificationReasonCode =
+  | "CLASSIFIED_BY_RULE"
+  | "NO_RULE_CLASSIFIED_THE_CASE"
+  | "PREVIOUS_CEDULA_DECLARED"
+  | "PROCEDURE_OUT_OF_PRODUCT_SCOPE"
+  | "COUNTRY_OUT_OF_PRODUCT_SCOPE"
+  | "SPECIAL_CASE_BYPASS"
+  | "PRODUCT_POLICY_DECLINED"
+  | "USER_INFORMATION_MISSING"
+  | "OFFICIAL_VERIFICATION_OPEN";
+
+export const CASE_CLASSIFICATION_REASON_CODES: readonly CaseClassificationReasonCode[] = [
+  "CLASSIFIED_BY_RULE",
+  "NO_RULE_CLASSIFIED_THE_CASE",
+  "PREVIOUS_CEDULA_DECLARED",
+  "PROCEDURE_OUT_OF_PRODUCT_SCOPE",
+  "COUNTRY_OUT_OF_PRODUCT_SCOPE",
+  "SPECIAL_CASE_BYPASS",
+  "PRODUCT_POLICY_DECLINED",
+  "USER_INFORMATION_MISSING",
+  "OFFICIAL_VERIFICATION_OPEN",
+];
 
 export function caseTypeIsTerminalUnsupported(caseType: CaseType): boolean {
   return caseType === "COUNTRY_NOT_SUPPORTED" || caseType === "NOT_FIRST_CEDULA";

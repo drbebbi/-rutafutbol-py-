@@ -56,7 +56,10 @@ export function createKnowledgeReadAdapter(connectionString: string): KnowledgeR
                   coalesce(
                     (select jsonb_agg(jsonb_build_object(
                         'sourceRevisionId', e.source_revision_id,
-                        'citationDetail', e.citation_detail) order by e.source_revision_id)
+                        'role', e.role,
+                        'claimSummary', e.claim_summary,
+                        'citationDetail', e.citation_detail,
+                        'quote', e.quote) order by e.source_revision_id)
                      from core.rule_evidence e where e.rule_revision_id = r.rule_revision_id),
                     '[]'::jsonb) as evidence
            from core.rule_revisions r
@@ -69,7 +72,11 @@ export function createKnowledgeReadAdapter(connectionString: string): KnowledgeR
 
         const evidence = await client.query<Record<string, unknown>>(
           `select source_revision_id, source_id, publication_status, language,
-                  to_char(retrieved_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as retrieved_at, locator
+                  to_char(published_at,'YYYY-MM-DD') as published_at,
+                  to_char(retrieved_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as retrieved_at,
+                  to_char(effective_from,'YYYY-MM-DD') as effective_from,
+                  to_char(effective_until,'YYYY-MM-DD') as effective_until,
+                  supersedes, confidence, notes, locator
            from core.source_revisions order by source_revision_id`,
         );
 
@@ -86,10 +93,7 @@ export function createKnowledgeReadAdapter(connectionString: string): KnowledgeR
           `select product_policy_revision_id, product_policy_id, publication_status,
                   to_char(valid_from,'YYYY-MM-DD') as valid_from,
                   to_char(valid_until,'YYYY-MM-DD') as valid_until,
-                  -- Cast off the domain type: the driver has no array parser
-                  -- registered for a domain over text, and would hand back the
-                  -- raw literal instead of an array.
-                  supported_desired_procedures::text[] as supported_desired_procedures
+                  payload_schema_version, payload
            from core.product_policy_revisions where ${live} order by product_policy_revision_id`,
           [on],
         );
@@ -108,7 +112,7 @@ export function createKnowledgeReadAdapter(connectionString: string): KnowledgeR
                   p.publication_status,
                   to_char(p.valid_from,'YYYY-MM-DD') as valid_from,
                   to_char(p.valid_until,'YYYY-MM-DD') as valid_until,
-                  p.applies_to_case_types, p.sections
+                  p.payload_schema_version, p.payload
            from core.pathway_definition_revisions p
            join core.pathway_definitions d on d.pathway_definition_id = p.pathway_definition_id
            where p.publication_status in ('PUBLISHED','SUPERSEDED')
@@ -147,7 +151,13 @@ export function createKnowledgeReadAdapter(connectionString: string): KnowledgeR
             sourceId: row["source_id"],
             publicationStatus: row["publication_status"],
             language: row["language"],
+            publishedAt: row["published_at"],
             retrievedAt: row["retrieved_at"],
+            effectiveFrom: row["effective_from"],
+            effectiveUntil: row["effective_until"],
+            supersedes: row["supersedes"],
+            confidence: row["confidence"],
+            notes: row["notes"],
             locator: row["locator"],
           })),
           feeIndexRevisions: feeIndexRevisions.rows.map((row) => ({
@@ -168,7 +178,8 @@ export function createKnowledgeReadAdapter(connectionString: string): KnowledgeR
             publicationStatus: row["publication_status"],
             validFrom: row["valid_from"],
             validUntil: row["valid_until"],
-            supportedDesiredProcedures: row["supported_desired_procedures"],
+            payloadSchemaVersion: row["payload_schema_version"],
+            payload: row["payload"],
           })),
           productCoverageRevisions: productCoverageRevisions.rows.map((row) => ({
             productCoverageRevisionId: row["product_coverage_revision_id"],
@@ -187,8 +198,8 @@ export function createKnowledgeReadAdapter(connectionString: string): KnowledgeR
             publicationStatus: row["publication_status"],
             validFrom: row["valid_from"],
             validUntil: row["valid_until"],
-            appliesToCaseTypes: row["applies_to_case_types"],
-            sections: row["sections"],
+            payloadSchemaVersion: row["payload_schema_version"],
+            payload: row["payload"],
           })),
         };
 

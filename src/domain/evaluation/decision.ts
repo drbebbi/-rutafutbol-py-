@@ -7,6 +7,7 @@ import type {
 } from "../procedures/procedure";
 import type { DocumentReuseAssessment, RequiredDocument } from "../documents/required-document";
 import type { CostEstimate, FeeCalculation } from "../fees/fee";
+import type { ProductAssessment } from "../product/product";
 import type { BlockingIssue, CaseModifier, VerificationFlag, Warning } from "./issues";
 
 /**
@@ -18,6 +19,11 @@ import type { BlockingIssue, CaseModifier, VerificationFlag, Warning } from "./i
  */
 export type CaseEvaluationDecision = Readonly<{
   residenceClassification: ResidenceClassificationResult;
+  /**
+   * What the product decided about serving this case, kept separate from the
+   * legal statements so the two can never be confused for one another.
+   */
+  productAssessment: ProductAssessment;
   caseClassification: CaseClassification;
   applicablePathway: PathwayId | null;
   modifiers: readonly CaseModifier[];

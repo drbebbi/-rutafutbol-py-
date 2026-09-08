@@ -72,7 +72,7 @@ export async function evaluateCaseForUser(
     return err({ kind: "PORT", error: content.error });
   }
 
-  const bundle = prepareEngineReadyBundle(content.value, context.value.effectiveLocalDate);
+  const bundle = prepareEngineReadyBundle(content.value, context.value.effectiveLocalDate, engine);
   if (!bundle.ok) {
     return err({ kind: "BUNDLE", issues: bundle.error });
   }

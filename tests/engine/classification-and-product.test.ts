@@ -14,7 +14,12 @@ import { expectOk, runEngine } from "../fixtures/engine";
 import { knownFact, unansweredFact, unknownFact } from "../../src/domain/case/knowledge";
 import { knownSpecialCaseGuard } from "../../src/case-engine/classify/special-case-guard";
 import { PRODUCT_COVERAGE_STATES } from "../../src/domain/product/product";
-import { runProductGate, projectProductPolicyFactView } from "../../src/case-engine/classify/product-gate";
+import {
+  projectProductCoverageFactView,
+  runProductCoveragePrecheck,
+} from "../../src/case-engine/classify/product-coverage";
+import { runProductPolicyGate } from "../../src/case-engine/classify/product-policy-gate";
+import { unwrapOrThrow } from "../../src/shared/result/result";
 import { engineReadyBundle } from "../fixtures/rules";
 import { assessCompletion, finalStatus } from "../../src/case-engine/evaluate/completion";
 
@@ -148,7 +153,7 @@ describe("product coverage", () => {
 
   it("falls back to a single citizenship when no process document is named", () => {
     const facts = userCaseFacts({ processTravelDocumentCountry: unansweredFact });
-    expect(String(projectProductPolicyFactView(facts).coverageCountry)).toBe("DE");
+    expect(String(projectProductCoverageFactView(facts).coverageCountry)).toBe("DE");
   });
 
   it("declares a procedure outside the product's scope unsupported", () => {
@@ -175,12 +180,32 @@ describe("product coverage", () => {
     ]);
   });
 
-  it("reports NOT_SUPPORTED when the policy does not serve the desired procedure at all", () => {
+  it("declines the case when no policy serves the desired procedure at all", () => {
     const facts = userCaseFacts({ desiredProcedure: "CEDULA_REPLACEMENT" });
     const bundle = engineReadyBundle([], "2026-06-15", supported);
-    const gate = runProductGate(facts, bundle, knownSpecialCaseGuard(facts));
-    expect(gate.assessment.coverageState).toBe("NOT_SUPPORTED");
-    expect(gate.assessment.blockers).toEqual(["PROCEDURE_OUT_OF_SCOPE"]);
+    const coverage = runProductCoveragePrecheck(facts, bundle, knownSpecialCaseGuard(facts));
+    const gate = unwrapOrThrow(
+      runProductPolicyGate(
+        {
+          desiredProcedure: "CEDULA_REPLACEMENT",
+          coverageCountry: coverage.view.coverageCountry,
+          coverageState: coverage.decision.state,
+          caseType: null,
+        },
+        coverage.decision,
+        bundle,
+      ),
+    );
+    expect(gate.effects).toEqual([
+      {
+        effect: { kind: "UNSUPPORTED", blocker: "PROCEDURE_OUT_OF_SCOPE" },
+        provenance: {
+          productPolicyId: "synthetic.policy.mvp",
+          productPolicyRevisionId: "00000000-0000-4000-8000-000000001f3f",
+          policyRuleKey: "supportedDesiredProcedures",
+        },
+      },
+    ]);
   });
 });
 

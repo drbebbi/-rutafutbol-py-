@@ -3,13 +3,7 @@ name: Cédula PY
 on:
   push:
     branches: ["main", "claude/**"]
-    paths: ["cedula-py/**", ".github/workflows/cedula-py.yml"]
   pull_request:
-    paths: ["cedula-py/**", ".github/workflows/cedula-py.yml"]
-
-defaults:
-  run:
-    working-directory: cedula-py
 
 jobs:
   pure:
@@ -22,7 +16,6 @@ jobs:
           # Node 24 LTS is the binding runtime baseline.
           node-version: "24"
           cache: npm
-          cache-dependency-path: cedula-py/package-lock.json
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
@@ -62,7 +55,6 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-          cache-dependency-path: cedula-py/package-lock.json
       - name: Install psql and pgTAP
         run: |
           sudo apt-get update
@@ -87,7 +79,6 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-          cache-dependency-path: cedula-py/package-lock.json
       - run: npm ci
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium webkit
@@ -98,5 +89,5 @@ jobs:
         if: failure()
         with:
           name: playwright-report
-          path: cedula-py/playwright-report
+          path: playwright-report
           retention-days: 7

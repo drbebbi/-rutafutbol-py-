@@ -1,87 +1,243 @@
-# RutaFútbol PY
+# Cédula PY
 
-Mobile-first Progressive Web App für den paraguayischen Fußball.
-Statische Website ohne Build-Prozess – direkt auf GitHub Pages deploybar.
+A mobile-first web app / PWA that helps foreigners **understand and organise
+their first Paraguayan cédula** - and says so plainly when something is not yet
+officially confirmed.
 
-## Enthalten
+This repository contains the **Phase 3 technical foundation**: a real domain
+model, a validated rule language, a pure deterministic evaluation engine, a
+PostgreSQL/Supabase persistence layer with row level security, security
+boundaries, and the test architecture that keeps all of it honest. It is not the
+finished product, and it does not ship a populated legal knowledge base.
 
-- Torneo Clausura 2026, Spieltage 1–3
-- 18 Spiele, 12 Vereine, 12 Stadien
-- Suche und Spieltagsfilter
-- Leaflet-Karte (bei Bedarf geladen) mit Google-Maps-Navigation
-- Spiel- und Stadiondetails
-- lokaler Fußballpass („Pasaporte") via `localStorage`
-- installierbare PWA (Android-Install-Prompt, iOS-Anleitung)
-- Offline-App-Shell über Service Worker
-- automatisches Deployment über GitHub Actions
+## Scope
 
-## Projektstruktur
+First cédula for foreigners. MVP country scope is Europe: DE, CH, AT, ES, FR, IT,
+PT, NL, BE, GB. MERCOSUR is explicitly out of scope for this core.
+
+## Stack
+
+| | |
+|---|---|
+| Runtime | Node.js 24 LTS (CI baseline) |
+| Framework | Next.js 16.3.4 (App Router, Turbopack) |
+| Language | TypeScript 5.9.3, `strict` plus `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `verbatimModuleSyntax` |
+| UI | React 19.2.8, Tailwind CSS 4.3.3 |
+| Validation | Zod 4.5.4 |
+| Database | PostgreSQL / Supabase (`@supabase/supabase-js` 2.116.0, `@supabase/ssr` 0.12.7) |
+| Tests | Vitest 5.0.0, fast-check 4.9.0, Playwright 1.63.0, pgTAP |
+| Package manager | **npm** with `package-lock.json` (no Yarn, no pnpm) |
+| ORM | none - SQL migrations are the schema source of truth |
+
+## Architecture at a glance
 
 ```
-index.html                    App-Shell (Kopfzeile, Navigation, Dialog)
-app.js                        Gesamte App-Logik (Vanilla JS, IIFE)
-data.js                       Spiel-, Stadion- und Vereinsdaten (window.RUTA_DATA)
-styles.css                    Mobile-first Styles
-sw.js                         Service Worker (Precache + Laufzeit-Cache für Leaflet)
-manifest.webmanifest          PWA-Manifest
-404.html                      Eigenständige Redirect-Seite für GitHub Pages
-icons/                        App-Icons (192, 512, Apple Touch)
-robots.txt, .nojekyll         Statische Konfiguration
-.github/workflows/pages.yml   Deployment-Workflow
+src/shared/          Result, brands, canonical JSON, SHA-256
+src/domain/          validated primitives, branded ids, facts, decisions
+src/rules/           rule AST, schemas, fact registry, bundle assembly
+src/case-engine/     the pure evaluator - no I/O of any kind
+src/application/     use cases and ports
+src/infrastructure/  adapters: Supabase, pg, logging, env, hashing
+src/auth/            authorization policy (pure)
+src/research/        the approved research baseline as reference data
+src/ui/ src/app/     Next.js App Router and components
+supabase/            migrations, seed, pgTAP tests
+tests/               unit · rules · engine · golden · property · application
+                     architecture · security · persistence · e2e
 ```
 
-## Lokal testen
+Dependencies point inwards only. See
+[docs/architecture/boundaries.md](docs/architecture/boundaries.md) - the rules
+are enforced by `npm run check:boundaries` and by a merge-blocking test.
 
-Eine PWA benötigt HTTP oder HTTPS; direktes Öffnen per `file://` reicht nicht
-(dann erscheinen nur Kopfzeile und Navigation, weil Skripte blockiert werden können
-und Service Worker/Manifest nicht funktionieren).
+## Module boundaries
+
+- `domain` and `case-engine` never import Next.js, React, Supabase, `pg` or any
+  I/O module. The engine additionally never imports `zod`: bundles reach it
+  already validated.
+- `rules` never reaches a database.
+- `application` depends on **ports**, never on adapters.
+- `ui` can never import the privileged (service-role) client.
+
+## Engine determinism
+
+```ts
+evaluateCase(facts, context, bundle, engine): Result<CaseEvaluationDecision, EngineError>
+```
+
+Same inputs → same decision, always. Independent of database row order, rule
+array order, evidence order, scope discovery order and `Map` insertion order.
+The engine reads no clock, no environment, no session and no database, and mints
+no random identifiers. Derived keys (`rp1:` / `rd1:`) are pure functions of
+semantic content.
+
+Full contract: [docs/domain/engine-contract.md](docs/domain/engine-contract.md).
+
+## Rule system
+
+A persisted rule is **data**, interpreted by a closed eight-node AST - never
+executed. No `eval`, no `new Function`, no JSONPath, no script rules.
+
+- Three-valued logic: `UNKNOWN` and `UNANSWERED` are `INDETERMINATE`, never
+  `FALSE`.
+- Rules read a projection (`RuleFactView`) through a closed fact-path registry,
+  partitioned into access domains so that a legal requirement rule cannot see
+  what documents you already hold.
+- Conflicts need **explicit** precedence (`EXCEPTION_TO` / `OVERRIDES`), applied
+  directly and non-transitively. No numeric priority, no automatic specificity.
+- Missing knowledge produces `REUSE_UNKNOWN`, `NEEDS_OFFICIAL_VERIFICATION` or a
+  blocking question - never a guess.
+
+Full description: [docs/domain/rule-dsl.md](docs/domain/rule-dsl.md).
+
+## Local setup
 
 ```bash
-python3 -m http.server 8080
+cd cedula-py
+npm ci
+cp .env.example .env.local     # then fill in real values locally; never commit
+npm run dev
 ```
 
-Dann `http://localhost:8080` öffnen. Alternativ:
+### Environment variables
+
+Names and placeholders live in `.env.example`. Nothing in this repository
+contains a real secret.
+
+| Variable | Where it may appear |
+|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | browser + server |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | browser + server |
+| `NEXT_PUBLIC_SITE_URL` | browser + server |
+| `SUPABASE_SERVICE_ROLE_KEY` | **server only**, never a client bundle |
+| `SUPABASE_DB_URL` | **server only** |
+| `CEDULA_ENVIRONMENT` | `LOCAL` \| `PREVIEW` \| `PRODUCTION` |
+| `CEDULA_AUTH_REDIRECT_ALLOWLIST` | exact trusted redirect origins |
+| `CEDULA_TEST_DATABASE_URL` | local integration/persistence tests only |
+| `CEDULA_SYNTHETIC_KNOWLEDGE` | enables the gated synthetic fixture route; refused in production |
+
+### Supabase / database
 
 ```bash
-npx serve .
+supabase start          # requires Docker
+supabase db reset       # applies supabase/migrations/*.sql, then seed.sql
+supabase db lint
+supabase test db        # pgTAP
+
+# Without the Supabase CLI, against any local PostgreSQL 16+ with pgTAP:
+export CEDULA_TEST_DATABASE_URL="postgresql://…"
+npm run db:reset
+npm run test:db
+npm run test:persistence
 ```
 
-Zum Testen auf dem iPhone im selben WLAN: `http://<IP-des-Rechners>:8080`
-(ohne HTTPS ist der Service Worker deaktiviert, die App selbst läuft trotzdem).
+Migrations are the **schema source of truth**. No schema change is ever made by
+hand in a dashboard.
 
-## GitHub Pages
+## Commands
 
-Das Repository enthält den Workflow `.github/workflows/pages.yml`.
+```bash
+npm run typecheck        npm run lint             npm run build
 
-Nach dem ersten Push auf `main`:
+npm run test:unit        npm run test:rules       npm run test:engine
+npm run test:golden      npm run test:property    npm run test:application
+npm run test:architecture npm run test:security   npm run test:coverage
+npm run test:integration npm run test:persistence npm run test:db
+npm run test:e2e
 
-1. Repository öffnen.
-2. **Settings → Pages** öffnen.
-3. Unter **Build and deployment** als Quelle **GitHub Actions** auswählen.
-4. Den Workflow unter **Actions** abwarten.
+npm run validate:rules   npm run validate:sources
+npm run verify:bundle    npm run check:boundaries
 
-Beim aktuellen Repository-Namen lautet die Seite voraussichtlich:
+npm test   # typecheck + lint + boundaries + rule/source/bundle gates
+           # + unit, rules, engine, golden, property, architecture,
+           #   security, application
+```
 
-`https://drbebbi.github.io/-rutafutbol-py-/`
+`npm test` deliberately excludes `integration`, `persistence`, `test:db` and
+`e2e`: those need a database or a browser, and a default test command that
+silently skips half of itself is worse than one that states its scope.
 
-Nach einer Umbenennung auf `rutafutbol-py` lautet sie:
+## Security notes
 
-`https://drbebbi.github.io/rutafutbol-py/`
+Full baseline: [docs/security/baseline.md](docs/security/baseline.md).
 
-Alle Pfade der App sind relativ – sie funktioniert in jedem
-Repository-Unterordner ohne Anpassung.
+- Server identity comes from verified claims (`getClaims()` / `getUser()`).
+  `getSession()` is never the security identity.
+- Supabase server clients are per request. Never a singleton.
+- Admin authority lives in `security.admin_authorizations`, never in
+  `user_metadata`. Privileged actions require AAL2 plus a live, fresh session.
+- RLS is enabled **and forced** on every table in every schema. Evaluations are
+  read-only to clients and append-only in the database.
+- Runtime roles are NOLOGIN with no `SUPERUSER` and no `BYPASSRLS`. Every
+  `SECURITY DEFINER` function pins `search_path = ''` and revokes `PUBLIC`.
+- Per-request nonce CSP; private and admin responses are never shared-cacheable.
+- Logging is allowlist-based: wizard answers cannot reach a log line.
+- No secrets in the repository.
 
-## Datenpflege
+## Known research limitations
 
-Alle Inhalte liegen in `data.js` (`window.RUTA_DATA`):
+The knowledge base is **not populated**. `supabase/seed.sql` contains no legal
+rules at all. The approved baseline is carried as documented reference data in
+`src/research/claims/baseline.ts`, not as rules - see
+[docs/research/baseline.md](docs/research/baseline.md).
 
-- `matches` – Spiele mit `id`, `round`, `date`, `time`, Stadionreferenz und Koordinaten
-- `stadiums` – Stadien mit `id`, Koordinaten und Google-Maps-Link
-- `clubs` – Vereinsliste
+### The Temporal Identificaciones conflict
 
-Der Pasaporte speichert unter den `localStorage`-Schlüsseln
-`ruta-saved-matches` und `ruta-visited-stadiums` jeweils ein Array von IDs.
-Diese Schlüssel dürfen nicht umbenannt werden, sonst verlieren Nutzer ihre Daten.
+Established: Residencia Temporal (Ley 6984/2022) can **in principle** open the
+way to a first cédula.
 
-Nach Änderungen an App-Shell-Dateien die Cache-Version in `sw.js`
-(`rutafutbol-py-vX`) erhöhen, damit installierte Clients die neue Version erhalten.
+Not established: which documents the Identificaciones service requires **from a
+temporal resident**. The published page covering first-cédula issuance is titled
+for temporal *and* permanent residents, yet its document list names
+permanent-residence documents (*Certificado de Radicación Permanente*, *Carnet de
+Admisión Permanente*). The exact temporal document set under **Resolución 717/26**
+is therefore `CONFLICTING` + `OFFICIAL_VERIFICATION_REQUIRED`.
+
+**This is not resolved by substituting PERMANENTE with TEMPORAL.** The system
+models the conflict instead: the case type
+`TEMPORAL_IDENTIFICACIONES_VERIFICATION_REQUIRED`, the verification code
+`TEMPORAL_IDENTIFICACIONES_DOCUMENT_SET`, a seeded row in
+`research.research_conflicts`, and an unresolved rule that states what needs
+verifying and carries no document consequence. The result is
+`NEEDS_OFFICIAL_VERIFICATION` with an **empty** document list rather than an
+invented one.
+
+## What is implemented
+
+- Full domain model: validated primitives, branded identifiers, knowledge states,
+  facts split into classification and readiness, case types, residence, fees,
+  money in integer minor units.
+- Rule DSL: closed AST with limits, fact-path registry with access domains,
+  eleven payload families, Zod schemas, structural validation, precedence
+  validation.
+- Pure engine: three-valued evaluation, scopes, classification, product gate,
+  procedures, documents, formalities, dependencies with DAG validation, document
+  reuse, fees with index resolution, warnings, indeterminacy analysis, blocking
+  issues, verification flags, completion frontier, pathway selection, canonical
+  output.
+- Persistence: five schemas, effective-window exclusion constraints, composite
+  ownership integrity, append-only evaluations, bundle materialisation, the
+  publication transaction with candidate-hash binding.
+- Security: RLS matrix, runtime roles, SECURITY DEFINER hardening, request-scoped
+  auth, admin authorization with AAL2 and liveness, CSP/CSRF/redirect controls,
+  allowlist logging, erasure path.
+- Testing: unit, rules, engine, golden, property, application, architecture,
+  security, persistence, pgTAP, e2e.
+- Basic app wiring: public shell, wizard seam, authenticated seam, admin
+  boundary, evaluation API, PWA base.
+
+## What is intentionally not implemented
+
+- The production legal knowledge base. No rule content is seeded.
+- The finished wizard UX and final route/checklist UI.
+- Final production visual design.
+- Legal content pages.
+- Pro subscription, partner marketplace, RUC, driver's licence, banking, SIM,
+  real estate.
+- MERCOSUR.
+- Anything belonging to Phase 4.
+
+## Licence and disclaimer
+
+Cédula PY explains official processes. It is **not legal advice**, and it says so
+whenever something still needs official verification.

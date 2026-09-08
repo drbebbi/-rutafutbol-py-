@@ -1,0 +1,155 @@
+{
+  "id": "SYN-003",
+  "title": "Residence status not known yet blocks on a user question",
+  "synthetic": true,
+  "ruleSet": "syn-standard",
+  "evaluatedAt": "2026-06-15T12:00:00Z",
+  "facts": {
+    "desiredProcedure": "FIRST_CEDULA",
+    "adultStatus": {
+      "state": "KNOWN",
+      "value": "ADULT"
+    },
+    "location": {
+      "state": "KNOWN",
+      "value": {
+        "kind": "IN_PARAGUAY",
+        "countryCode": "PY"
+      }
+    },
+    "maritalStatus": {
+      "state": "KNOWN",
+      "value": "SINGLE"
+    },
+    "holdsPreviousParaguayanCedula": {
+      "state": "KNOWN",
+      "value": false
+    },
+    "nationalities": {
+      "state": "KNOWN",
+      "value": [
+        {
+          "countryCode": "DE",
+          "roles": [
+            "CITIZENSHIP",
+            "ENTRY_TRAVEL_DOCUMENT",
+            "PROCESS_TRAVEL_DOCUMENT"
+          ]
+        }
+      ]
+    },
+    "residence": {
+      "reportedType": {
+        "state": "UNKNOWN"
+      },
+      "card": {
+        "state": {
+          "state": "UNKNOWN"
+        },
+        "expiryDate": {
+          "state": "UNANSWERED"
+        }
+      }
+    },
+    "residenceHistory": {
+      "state": "KNOWN",
+      "value": [
+        {
+          "countryCode": "PY",
+          "from": "2025-01-01",
+          "to": null
+        }
+      ]
+    },
+    "entryTravelDocumentCountry": {
+      "state": "KNOWN",
+      "value": "DE"
+    },
+    "processTravelDocumentCountry": {
+      "state": "KNOWN",
+      "value": "DE"
+    },
+    "specialCase": {
+      "paraguayanCitizenship": {
+        "state": "KNOWN",
+        "value": false
+      },
+      "paraguayanParent": {
+        "state": "KNOWN",
+        "value": false
+      },
+      "paraguayanSpouse": {
+        "state": "KNOWN",
+        "value": false
+      },
+      "repatriadoFamily": {
+        "state": "KNOWN",
+        "value": false
+      },
+      "diplomaticStatus": {
+        "state": "KNOWN",
+        "value": false
+      },
+      "protectionStatus": {
+        "state": "KNOWN",
+        "value": false
+      },
+      "investorStatus": {
+        "state": "KNOWN",
+        "value": false
+      }
+    },
+    "readiness": {
+      "documents": {
+        "state": "KNOWN",
+        "value": []
+      },
+      "entryEvidence": {
+        "state": "KNOWN",
+        "value": "STAMP_AVAILABLE"
+      }
+    }
+  },
+  "expected": {
+    "kind": "DECISION",
+    "status": "NEEDS_USER_INFORMATION",
+    "caseType": null,
+    "residence": "CLASSIFICATION_REQUIRED:-",
+    "pathway": null,
+    "modifiers": [
+      "APPLICANT_IN_PARAGUAY:-"
+    ],
+    "blockingIssues": [
+      "RESIDENCE_STATUS_REQUIRED@CASE_TYPE",
+      "RESIDENCE_STATUS_REQUIRED@DEPENDENCY",
+      "RESIDENCE_STATUS_REQUIRED@DOCUMENT_REQUIREMENT",
+      "RESIDENCE_STATUS_REQUIRED@FEE",
+      "RESIDENCE_STATUS_REQUIRED@PROCEDURE_REQUIREMENT"
+    ],
+    "verificationFlags": [],
+    "requiredProcedures": [
+      "rp1:syn.cedula-first||-#CONFIRMED"
+    ],
+    "procedureDependencies": [],
+    "requiredDocuments": [
+      "rd1:rp1%3Asyn.cedula-first%7C%7C-|syn.birth-certificate|-|-#CONFIRMED[syn.apostille]"
+    ],
+    "documentReuse": [
+      "rd1:rp1%3Asyn.cedula-first%7C%7C-|syn.birth-certificate|-|-=REUSABLE_CONFIRMED"
+    ],
+    "warnings": [
+      "PROCESSING_TIME_INDICATION:INFO:syn-indication"
+    ],
+    "fees": [
+      "rp1:syn.cedula-first||-:syn.official=8500 PYG"
+    ],
+    "costEstimate": {
+      "confirmedOfficial": [
+        "8500 PYG"
+      ],
+      "indexedOfficial": [],
+      "unknownOfficialFeeCount": 0,
+      "externalVariableCostCodes": []
+    }
+  }
+}

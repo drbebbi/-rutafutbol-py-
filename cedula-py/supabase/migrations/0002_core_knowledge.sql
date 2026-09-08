@@ -1,0 +1,273 @@
+-- =============================================================================
+-- 0002 - Published knowledge base
+-- =============================================================================
+-- Stable identities carry the slug; revisions carry the content and an
+-- effective window. The domain treats windows as inclusive on both ends;
+-- PostgreSQL normalises them to half-open ranges internally, which is why the
+-- exclusion constraints below build `daterange(valid_from, valid_until, '[]')`.
+-- =============================================================================
+
+create domain core.slug as text
+  check (value ~ '^[a-z0-9]+([-.][a-z0-9]+)*$' and length(value) between 1 and 96);
+
+create domain core.publication_status as text
+  check (value in ('DRAFT', 'REVIEWED', 'APPROVED', 'PUBLISHED', 'SUPERSEDED', 'RETIRED'));
+
+create domain core.verification_status as text
+  check (value in ('CONFIRMED', 'STRONG_EVIDENCE', 'CONFLICTING', 'UNKNOWN', 'OFFICIAL_VERIFICATION_REQUIRED'));
+
+create domain core.desired_procedure as text
+  check (value in ('FIRST_CEDULA', 'CEDULA_RENEWAL', 'CEDULA_REPLACEMENT'));
+
+create domain core.country_code as text check (value ~ '^[A-Z]{2}$');
+create domain core.currency_code as text check (value ~ '^[A-Z]{3}$');
+create domain core.language_code as text check (value ~ '^[a-z]{2}$');
+create domain core.schema_version as text check (value ~ '^[a-z][a-z0-9-]*@[0-9]+\.[0-9]+$');
+create domain core.sha256_hex as text check (value ~ '^[0-9a-f]{64}$');
+
+create table core.countries (
+  country_code core.country_code primary key,
+  label        text not null
+);
+
+create table core.authorities (
+  authority_id core.slug primary key,
+  country_code core.country_code not null references core.countries (country_code),
+  label        text not null
+);
+
+create table core.offices (
+  office_id    core.slug primary key,
+  authority_id core.slug not null references core.authorities (authority_id)
+);
+
+create table core.office_revisions (
+  office_revision_id uuid primary key default gen_random_uuid(),
+  office_id          core.slug not null references core.offices (office_id),
+  publication_status core.publication_status not null,
+  valid_from         date not null,
+  valid_until        date,
+  label              text not null,
+  city               text,
+  constraint office_revisions_window_ordered check (valid_until is null or valid_until >= valid_from)
+);
+
+create table core.procedures (
+  procedure_id core.slug primary key,
+  authority_id core.slug not null references core.authorities (authority_id),
+  label        text not null
+);
+
+create table core.document_types (
+  document_type_id core.slug primary key,
+  label            text not null
+);
+
+create table core.sources (
+  source_id    core.slug primary key,
+  authority_id core.slug not null references core.authorities (authority_id),
+  kind         text not null check (kind in ('LAW', 'DECREE', 'RESOLUTION', 'OFFICIAL_WEBSITE', 'OFFICIAL_FORM', 'OFFICIAL_FEE_SCHEDULE')),
+  citation     text not null
+);
+
+create table core.source_revisions (
+  source_revision_id uuid primary key default gen_random_uuid(),
+  source_id          core.slug not null references core.sources (source_id),
+  publication_status core.publication_status not null,
+  language           core.language_code not null,
+  retrieved_at       timestamptz not null,
+  locator            text not null
+);
+
+create table core.rule_sets (
+  rule_set_id core.slug primary key,
+  label       text not null
+);
+
+create table core.rule_set_revisions (
+  rule_set_revision_id uuid primary key default gen_random_uuid(),
+  rule_set_id          core.slug not null references core.rule_sets (rule_set_id),
+  publication_status   core.publication_status not null,
+  valid_from           date not null,
+  valid_until          date,
+  constraint rule_set_revisions_window_ordered check (valid_until is null or valid_until >= valid_from)
+);
+
+create table core.rules (
+  rule_id     core.slug primary key,
+  rule_set_id core.slug not null references core.rule_sets (rule_set_id),
+  label       text not null
+);
+
+create table core.rule_revisions (
+  rule_revision_id      uuid primary key default gen_random_uuid(),
+  rule_id               core.slug not null references core.rules (rule_id),
+  rule_set_revision_id  uuid not null references core.rule_set_revisions (rule_set_revision_id),
+  version               integer not null check (version >= 1),
+  publication_status    core.publication_status not null,
+  verification_status   core.verification_status not null,
+  valid_from            date not null,
+  valid_until           date,
+  payload_schema_version core.schema_version not null,
+  -- The payload is DATA. It is interpreted by the engine's closed AST
+  -- evaluator; it is never executed, never eval()'d, never compiled.
+  payload               jsonb not null,
+  precedence            jsonb not null default '[]'::jsonb,
+  verification          jsonb,
+  created_at            timestamptz not null default now(),
+  constraint rule_revisions_window_ordered check (valid_until is null or valid_until >= valid_from),
+  constraint rule_revisions_unique_version unique (rule_id, version),
+  -- An unresolved rule must say what needs verifying; a resolved one must not
+  -- carry a substitute consequence.
+  constraint rule_revisions_verification_declaration check (
+    (verification_status in ('CONFIRMED', 'STRONG_EVIDENCE') and verification is null)
+    or (verification_status in ('CONFLICTING', 'UNKNOWN', 'OFFICIAL_VERIFICATION_REQUIRED') and verification is not null)
+  )
+);
+
+comment on column core.rule_revisions.payload is
+  'Rule condition and consequence as data. Never executable code.';
+
+create table core.rule_evidence (
+  rule_revision_id   uuid not null references core.rule_revisions (rule_revision_id) on delete cascade,
+  source_revision_id uuid not null references core.source_revisions (source_revision_id),
+  citation_detail    text not null,
+  primary key (rule_revision_id, source_revision_id, citation_detail)
+);
+
+create table core.fee_indexes (
+  fee_index_id core.slug primary key,
+  label        text not null
+);
+
+create table core.fee_index_revisions (
+  fee_index_revision_id uuid primary key default gen_random_uuid(),
+  fee_index_id          core.slug not null references core.fee_indexes (fee_index_id),
+  publication_status    core.publication_status not null,
+  verification_status   core.verification_status not null,
+  valid_from            date not null,
+  valid_until           date,
+  unit_amount_minor     bigint not null check (unit_amount_minor >= 0),
+  unit_currency         core.currency_code not null,
+  constraint fee_index_revisions_window_ordered check (valid_until is null or valid_until >= valid_from)
+);
+
+create table core.fee_index_revision_sources (
+  fee_index_revision_id uuid not null references core.fee_index_revisions (fee_index_revision_id) on delete cascade,
+  source_revision_id    uuid not null references core.source_revisions (source_revision_id),
+  primary key (fee_index_revision_id, source_revision_id)
+);
+
+create table core.product_policies (
+  product_policy_id core.slug primary key,
+  label             text not null
+);
+
+create table core.product_policy_revisions (
+  product_policy_revision_id uuid primary key default gen_random_uuid(),
+  product_policy_id          core.slug not null references core.product_policies (product_policy_id),
+  publication_status         core.publication_status not null,
+  valid_from                 date not null,
+  valid_until                date,
+  supported_desired_procedures core.desired_procedure[] not null,
+  constraint product_policy_revisions_window_ordered check (valid_until is null or valid_until >= valid_from)
+);
+
+create table core.product_coverages (
+  product_coverage_id core.slug primary key,
+  label               text not null
+);
+
+create table core.product_coverage_revisions (
+  product_coverage_revision_id uuid primary key default gen_random_uuid(),
+  product_coverage_id          core.slug not null references core.product_coverages (product_coverage_id),
+  publication_status           core.publication_status not null,
+  valid_from                   date not null,
+  valid_until                  date,
+  country_code                 core.country_code not null,
+  desired_procedure            core.desired_procedure not null,
+  state                        text not null check (state in ('SUPPORTED', 'PARTIAL', 'NOT_SUPPORTED', 'RESEARCH_REQUIRED')),
+  constraint product_coverage_revisions_window_ordered check (valid_until is null or valid_until >= valid_from)
+);
+
+create table core.pathway_definitions (
+  pathway_definition_id core.slug primary key,
+  pathway_id            core.slug not null,
+  label                 text not null
+);
+
+create table core.pathway_definition_revisions (
+  pathway_definition_revision_id uuid primary key default gen_random_uuid(),
+  pathway_definition_id          core.slug not null references core.pathway_definitions (pathway_definition_id),
+  publication_status             core.publication_status not null,
+  valid_from                     date not null,
+  valid_until                    date,
+  applies_to_case_types          text[] not null,
+  sections                       jsonb not null default '[]'::jsonb,
+  constraint pathway_definition_revisions_window_ordered check (valid_until is null or valid_until >= valid_from)
+);
+
+-- ---------------------------------------------------------------------------
+-- Effective window exclusion constraints
+-- ---------------------------------------------------------------------------
+-- For one stable identity, two revisions that are both live knowledge
+-- (PUBLISHED or SUPERSEDED) may never cover the same day: an evaluation dated
+-- inside an overlap would have no defensible answer.
+
+alter table core.rule_revisions
+  add constraint rule_revisions_no_overlap
+  exclude using gist (
+    rule_id with =,
+    daterange(valid_from, valid_until, '[]') with &&
+  ) where (publication_status in ('PUBLISHED', 'SUPERSEDED'));
+
+alter table core.rule_set_revisions
+  add constraint rule_set_revisions_no_overlap
+  exclude using gist (
+    rule_set_id with =,
+    daterange(valid_from, valid_until, '[]') with &&
+  ) where (publication_status in ('PUBLISHED', 'SUPERSEDED'));
+
+alter table core.fee_index_revisions
+  add constraint fee_index_revisions_no_overlap
+  exclude using gist (
+    fee_index_id with =,
+    daterange(valid_from, valid_until, '[]') with &&
+  ) where (publication_status in ('PUBLISHED', 'SUPERSEDED'));
+
+alter table core.product_policy_revisions
+  add constraint product_policy_revisions_no_overlap
+  exclude using gist (
+    product_policy_id with =,
+    daterange(valid_from, valid_until, '[]') with &&
+  ) where (publication_status in ('PUBLISHED', 'SUPERSEDED'));
+
+alter table core.product_coverage_revisions
+  add constraint product_coverage_revisions_no_overlap
+  exclude using gist (
+    product_coverage_id with =,
+    daterange(valid_from, valid_until, '[]') with &&
+  ) where (publication_status in ('PUBLISHED', 'SUPERSEDED'));
+
+alter table core.pathway_definition_revisions
+  add constraint pathway_definition_revisions_no_overlap
+  exclude using gist (
+    pathway_definition_id with =,
+    daterange(valid_from, valid_until, '[]') with &&
+  ) where (publication_status in ('PUBLISHED', 'SUPERSEDED'));
+
+alter table core.office_revisions
+  add constraint office_revisions_no_overlap
+  exclude using gist (
+    office_id with =,
+    daterange(valid_from, valid_until, '[]') with &&
+  ) where (publication_status in ('PUBLISHED', 'SUPERSEDED'));
+
+create index rule_revisions_lookup_idx
+  on core.rule_revisions (rule_id, publication_status, valid_from);
+create index rule_revisions_rule_set_idx on core.rule_revisions (rule_set_revision_id);
+create index fee_index_revisions_lookup_idx
+  on core.fee_index_revisions (fee_index_id, publication_status, valid_from);
+create index product_coverage_lookup_idx
+  on core.product_coverage_revisions (country_code, desired_procedure, publication_status);
+create index rule_evidence_source_idx on core.rule_evidence (source_revision_id);

@@ -1,40 +1,38 @@
 name: Deploy RutaFútbol PY to GitHub Pages
 
+# GitHub Pages ist für dieses Repository im Branch-Modus aktiviert und
+# veröffentlicht den Branch `gh-pages`. Dieser Workflow spiegelt deshalb
+# jeden Stand von `main` nach `gh-pages`; GitHub baut die Seite danach
+# automatisch ("pages build and deployment").
+#
+# Der frühere Weg über actions/configure-pages + deploy-pages funktioniert
+# hier nicht: Er setzt voraus, dass unter Settings → Pages als Quelle
+# "GitHub Actions" eingestellt ist. Ohne diese Einstellung bricht er mit
+# "Get Pages site failed" bzw. "Create Pages site failed: Resource not
+# accessible by integration" ab – ein Workflow-Token darf eine Pages-Site
+# nicht selbst anlegen.
+
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
   group: pages
   cancel-in-progress: true
 
 jobs:
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  publish:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      # enablement: true aktiviert GitHub Pages beim ersten Lauf selbst.
-      # Ohne diese Option bricht der Workflow mit
-      # "Get Pages site failed … Error: Not Found" ab, solange Pages nicht
-      # manuell unter Settings → Pages eingeschaltet wurde.
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
-        with:
-          enablement: true
-      - name: Upload static site
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: .
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+
+      - name: Publish current main to gh-pages
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git push --force origin HEAD:refs/heads/gh-pages

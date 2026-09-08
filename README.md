@@ -37,7 +37,7 @@ src/domain/          validated primitives, branded ids, facts, decisions
 src/rules/           rule AST, schemas, fact registry, bundle assembly
 src/case-engine/     the pure evaluator - no I/O of any kind
 src/application/     use cases and ports
-src/infrastructure/  adapters: Supabase, pg, logging, env, hashing
+src/infrastructure/  adapters: Supabase, postgres.js, logging, env, hashing
 src/auth/            authorization policy (pure)
 src/research/        the approved research baseline as reference data
 src/ui/ src/app/     Next.js App Router and components
@@ -52,7 +52,7 @@ are enforced by `npm run check:boundaries` and by a merge-blocking test.
 
 ## Module boundaries
 
-- `domain` and `case-engine` never import Next.js, React, Supabase, `pg` or any
+- `domain` and `case-engine` never import Next.js, React, Supabase, a database driver or any
   I/O module. The engine additionally never imports `zod`: bundles reach it
   already validated.
 - `rules` never reaches a database.

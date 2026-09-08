@@ -118,7 +118,33 @@ npm test                   # typecheck, lint, gates, all non-database projects
 
 # require CEDULA_TEST_DATABASE_URL
 npm run db:reset && npm run test:db && npm run test:persistence
+npm run test:integration
+npm run verify:shim        # migration 0000 is a no-op on an existing platform
 
-# requires a production build
+# configuration gates, no database needed
+npm run verify:exposure    # the Data API exposes only `app`
+npm run release:gate       # fails while the Phase 2D corpus is incomplete
+
+# starts both a development server and a production build
 npm run build && npm run test:e2e
 ```
+
+## The release gate
+
+`npm run release:gate` exits non-zero while any of the 71 approved Phase 2D
+golden cases is still marked `SPECIFICATION_INPUT_REQUIRED`, printing
+`P2D_GOLDEN_CORPUS_INCOMPLETE: x/71`. It runs as its own CI job so its failure
+is attributable, and it has its own test so it cannot be reduced to a warning.
+
+The distinction it protects is worth stating plainly: the golden suite passing
+with synthetic cases means the engine agrees with fixtures written alongside
+it. It does not mean the engine agrees with the approved expectations, and no
+other gate in this repository can tell the difference.
+
+## Two servers for end-to-end tests
+
+The synthetic-knowledge fixture route is refused unconditionally in a
+production build, so the specs that drive it run against a development server.
+The specs that make claims about headers, caching and the fixture route's own
+refusal run against a production build started alongside on its own port: a
+claim about what ships has to be tested on what ships.

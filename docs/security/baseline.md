@@ -47,23 +47,54 @@ which is the correct default for `research`, `audit` and `security`.
   policy and no INSERT grant; the authoritative write goes through
   `app.record_case_evaluation`, and an UPDATE trigger makes the table
   append-only even for a role that somehow held the privilege.
+- `app.record_case_evaluation` is **not executable by `authenticated` or
+  `anon`**. Not even the owner of a case may call it: an evaluation a client
+  could ask for is not evidence that the engine produced one. The write runs
+  server-side as the internal runtime role, which passes in the owner it
+  verified; the database checks that owner against the case, so the trust chain
+  ends in the server rather than in a token.
 - Composite foreign key `(user_case_id, owner_user_id) → user_cases(id,
   owner_user_id)`: an evaluation can never be attached to somebody else's case.
 - Ownership is immutable; a trigger rejects a transfer.
-- `core.*` is publicly readable reference data; writes are admin-only.
+- `core.*` is public reference data, but **not through the Data API**. `app` is
+  the only exposed schema; the browser roles hold no privilege on `core` and no
+  policy there, and published knowledge reaches a visitor through a server read
+  path - which can assemble a whole bundle in one `REPEATABLE READ` transaction,
+  something PostgREST could not express in any case. Writes are admin-only.
 
 Runtime roles `cedula_runtime_role` and `cedula_admin_runtime_role` are NOLOGIN
 and hold neither `SUPERUSER` nor `BYPASSRLS`. The admin runtime may write
 knowledge; it may **not** browse private user cases.
+
+`anon` and `authenticated` are **members of neither**. These are permission
+groups for server processes, and a browser role's privileges are reachable
+through any request; membership is granted to environment-specific login
+principals outside the migrations, which create no credential of any kind.
+pgTAP checks membership *and* `SET ROLE` reachability, for the browser roles and
+for the connection role behind the Data API - `rolsuper` and `rolbypassrls`
+alone would not have caught a plain `SET ROLE`.
+
+Administrative authority is read on the internal path, never through the
+requester's own request-scoped client: such a client carries the requester's own
+privileges, and asking a user's session whether that user is an administrator
+asks the wrong party. The lookup is fresh on every call, and a lookup that
+fails yields **no identity** rather than an identity with no roles - "signed in,
+not an administrator" and "could not ask" must not look alike.
 
 Every `SECURITY DEFINER` function pins `search_path = ''`, references every
 object schema-qualified, and has `EXECUTE` revoked from `PUBLIC`. pgTAP asserts
 both properties over the whole database.
 
 Behind Supavisor transaction pooling there is no session affinity and no
-server-side prepared-statement reuse; the direct-connection adapters use plain
-text queries for exactly that reason (with `postgres.js`, this is the
-`prepare: false` requirement).
+server-side prepared-statement reuse; the internal adapters open `postgres.js`
+connections with `prepare: false` for exactly that reason.
+
+Publication cannot ship something nobody validated. The publishing transaction
+takes an advisory lock, reassembles the candidate through the same production
+assembly the runtime uses, hashes it and compares against the approval; the
+caller states only what it approved, and never what the candidate currently is.
+A caller able to state both halves of that comparison would always find them
+equal.
 
 ## Web
 

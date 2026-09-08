@@ -8,11 +8,11 @@ by `tests/architecture`, both driven from the same rule set in
 
 | Layer | May not import | Why |
 |---|---|---|
-| `src/domain` | Next.js, React, Supabase, `pg`, `node:fs`/net/http/child_process, `src/app`, `src/ui`, `src/application`, `src/case-engine`, `src/rules` | The domain is the vocabulary. If it knew about a framework, the vocabulary would be shaped by the framework. |
-| `src/rules` | Next.js, React, Supabase, `pg`, I/O modules, `src/app`, `src/ui`, `src/application`, `src/case-engine` | A rule definition is data. It must be readable and validatable without a database. |
+| `src/domain` | Next.js, React, Supabase, `pg` / `postgres`, `node:fs`/net/http/child_process, `src/app`, `src/ui`, `src/application`, `src/case-engine`, `src/rules` | The domain is the vocabulary. If it knew about a framework, the vocabulary would be shaped by the framework. |
+| `src/rules` | Next.js, React, Supabase, `pg` / `postgres`, I/O modules, `src/app`, `src/ui`, `src/application`, `src/case-engine` | A rule definition is data. It must be readable and validatable without a database. |
 | `src/case-engine` | all of the above **plus `zod`** | The engine performs no I/O and parses no untrusted input: bundles arrive already validated. |
-| `src/application` | Next.js, React, Supabase, `pg`, `src/infrastructure`, `src/ui` | The application layer talks to **ports**; adapters implement them. |
-| `src/ui` | anything matching `privileged`, `@supabase/supabase-js`, `pg` | The UI must not be able to reach the service-role client. |
+| `src/application` | Next.js, React, Supabase, `pg` / `postgres`, `src/infrastructure`, `src/ui` | The application layer talks to **ports**; adapters implement them. |
+| `src/ui` | anything matching `privileged`, `@supabase/supabase-js`, `pg` / `postgres` | The UI must not be able to reach the service-role client. |
 | `src/auth` | Next.js, React, `src/infrastructure`, `src/ui` | Authorization policy is pure and unit-testable. |
 
 The scanner reads static imports, dynamic `import()` and `require()`.

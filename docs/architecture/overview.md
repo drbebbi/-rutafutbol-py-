@@ -28,7 +28,7 @@ src/
   rules/           rule DSL, schemas, bundle assembly           -> domain, shared, zod
   case-engine/     the pure evaluator                           -> domain, rules, shared
   application/     use cases and PORTS                          -> domain, rules, engine
-  infrastructure/  adapters: Supabase, pg, logging, env         -> application ports
+  infrastructure/  adapters: Supabase, postgres.js, logging, env -> application ports
   auth/            authorization policy (pure)                  -> domain
   research/        the approved baseline as reference data      -> domain
   ui/ app/ pwa/    Next.js App Router, components, PWA          -> application
@@ -97,13 +97,24 @@ research claim ─▶ review ─▶ APPROVED revision
                      PublicationValidationService
                      (schema, fact access, evidence, precedence, cycles,
                       bundle semantics, conflicts, safety-corpus impact)
-                               │  candidateBundleHash
+                               │  candidateBundleHash, approved by a publisher
                                ▼
-                  core.publish_rule_revision(approvedHash, actualHash)
+                     publication transaction
+                       - takes the publication advisory lock
+                       - reassembles the candidate with the production assembly
+                       - hashes it and compares against the approval
+                       │  verified hash
+                       ▼
+                  core.publish_rule_revision(actor, revision, validFrom,
+                                             approvedHash, verifiedHash)
                     - refuses on STALE_PUBLICATION_VALIDATION
                     - closes the predecessor's open window
                     - writes an audit event
 ```
+
+The publisher states what it approved. It never states what the candidate
+currently is: a caller able to supply both halves of that comparison would
+always find them equal, and the staleness check would prove nothing.
 
 Production rule publication never starts a test runner.
 

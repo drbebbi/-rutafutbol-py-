@@ -1,8 +1,17 @@
 import { expect, test } from "@playwright/test";
 import { PRODUCTION_BASE_URL } from "../../playwright.config";
 
+/*
+ * Header, caching and gate claims are made against the production build.
+ *
+ * The default base URL is a development server, because the synthetic fixture
+ * route the wizard specs drive is refused on a production build. But a claim
+ * about what ships has to be tested on what ships: the development server
+ * rewrites Cache-Control and serves its own headers, so asserting there would
+ * be asserting about a build nobody deploys.
+ */
 test("security headers are present on a public response", async ({ request }) => {
-  const response = await request.get("/");
+  const response = await request.get(`${PRODUCTION_BASE_URL}/`);
   const headers = response.headers();
   expect(headers["content-security-policy"]).toContain("object-src 'none'");
   expect(headers["content-security-policy"]).toContain("base-uri 'self'");
@@ -14,7 +23,7 @@ test("security headers are present on a public response", async ({ request }) =>
 });
 
 test("private routes are never stored in a shared cache", async ({ request }) => {
-  const response = await request.get("/case");
+  const response = await request.get(`${PRODUCTION_BASE_URL}/case`);
   expect(response.headers()["cache-control"]).toContain("no-store");
 });
 
@@ -38,18 +47,18 @@ test("a cross-origin evaluation request is refused", async ({ request }) => {
 });
 
 test("the admin boundary denies an unauthenticated visitor", async ({ page }) => {
-  await page.goto("/admin");
+  await page.goto(`${PRODUCTION_BASE_URL}/admin`);
   await expect(page.getByTestId("admin-denied")).toBeVisible();
   await expect(page.getByTestId("admin-denied-reason")).toHaveText("NOT_AUTHENTICATED");
 });
 
 test("the case page renders its signed-out state", async ({ page }) => {
-  await page.goto("/case");
+  await page.goto(`${PRODUCTION_BASE_URL}/case`);
   await expect(page.getByTestId("case-signed-out")).toBeVisible();
 });
 
 test("an unknown route renders the not-found page", async ({ page }) => {
-  const response = await page.goto("/no-such-page");
+  const response = await page.goto(`${PRODUCTION_BASE_URL}/no-such-page`);
   expect(response?.status()).toBe(404);
   await expect(page.getByTestId("not-found")).toBeVisible();
 });

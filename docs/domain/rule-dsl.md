@@ -61,11 +61,14 @@ Each registered path declares:
 | Domain | Contents | Readable by |
 |---|---|---|
 | `CASE_LEGAL` | the applicant's legal situation | every family |
-| `DOCUMENT_STATE` | what papers the applicant already holds | document reuse, warnings, timelines |
+| `DOCUMENT_STATE` | what papers the applicant already holds | document reuse, document formality, warnings, timelines |
 | `ENTRY_READINESS` | evidence of entry available today | warnings, timelines |
 
-This is what makes "I already have my birth certificate" incapable of deleting
-the legal requirement for a birth certificate.
+`DOCUMENT_REQUIREMENT` is deliberately not in that second row. A formality rule
+may look at a document the applicant holds - whether it needs an apostille is a
+question about that document - but the requirement itself is decided without
+looking, which is what makes "I already have my birth certificate" incapable of
+deleting the legal requirement for a birth certificate.
 
 ## Scopes
 
@@ -89,21 +92,64 @@ Document reuse is its own family with its own resolved values -
 `REUSABLE_CONFIRMED`, `REUSE_NOT_ALLOWED`, `REISSUE_REQUIRED` - and the **absence
 of a rule yields `REUSE_UNKNOWN`**. It never yields any of the other three.
 
-## Verification
+## Resolution: a consequence or a question, never both
+
+A payload carries a `RuleResolution`:
+
+```
+RESOLVED    -> consequence
+UNRESOLVED  -> reason + verification { code, target }
+```
+
+The two are alternatives in the type, so an unresolved rule has nowhere to put
+a consequence. That is stronger than a convention: there is no field to leak a
+provisional legal statement through, in TypeScript, in the JSON schema, or in
+the database, where a CHECK constraint additionally requires the resolution
+state and the revision's evidence status to agree.
+
+`precedence` lives in the payload too. What a rule says and what it overrides
+are one statement, covered by one schema version and one bundle hash.
+
+### Verification targets
+
+An unresolved rule names what needs checking with the same selectors the
+consequence families use:
+
+| Target | Names |
+|---|---|
+| `CASE` | the case as a whole |
+| `PROCEDURE` | a procedure selector |
+| `DOCUMENT` | a document selector |
+| `VISA_PURPOSE` | a visa purpose code, literally |
+| `FEE_COMPONENT` | a procedure selector plus a component code |
+
+The engine resolves the target against the decision it actually produced.
+A target that matches nothing, or several things, is a rule configuration
+error. There is deliberately **no fallback to `CASE`**: a rule that names a
+procedure and cannot be pointed at one is not a general question about the
+case, it is a rule that no longer matches the knowledge base, and widening its
+target would hide exactly that. A target the decision explicitly ruled out is
+dropped instead, because asking about something already ruled out is noise.
+
+## Verification status
 
 `CONFIRMED`, `STRONG_EVIDENCE`, `CONFLICTING`, `UNKNOWN`,
 `OFFICIAL_VERIFICATION_REQUIRED`. There is no `OUTDATED`: whether a revision
 still applies is decided by its effective window and publication status.
 
-A resolved rule (CONFIRMED / STRONG_EVIDENCE) must cite evidence and must **not**
-carry a verification declaration. An unresolved rule must declare a
-`VerificationCode` and a target kind, and carries **no substitute consequence**.
-Both invariants are enforced in TypeScript, in the JSON schema, and by a database
-CHECK constraint.
+This is evidence metadata, not a decision channel. The engine reads the
+payload's resolution; this field records how well the sources back it, and the
+validator keeps the two consistent.
 
 ## Versioning
 
-Every revision carries `payloadSchemaVersion`, currently `rule-payload@1.0`. The
+Every revision carries `payloadSchemaVersion`, currently `rule-payload@2.0`. The
 version covers the *semantics* - AST meaning, operators, fact paths, date
 semantics, resolver behaviour - not just the shape. No silent semantic change
 under an unchanged version.
+
+Product policies and pathway definitions version independently, as
+`product-policy@1.0` and `pathway-definition@1.0`. The engine descriptor lists
+which versions of each this build can interpret, and bundle preparation refuses
+anything it does not recognise rather than reading it with the wrong
+expectations.

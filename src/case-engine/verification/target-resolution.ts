@@ -42,18 +42,58 @@ function missing(ruleId: RuleId, detail: string): EngineError {
   return ruleConfigurationError("VERIFICATION_TARGET_MISSING", detail, ruleId);
 }
 
-function ambiguous(ruleId: RuleId, detail: string): EngineError {
-  return ruleConfigurationError("VERIFICATION_TARGET_AMBIGUOUS", detail, ruleId);
+/**
+ * How a selector's outcome becomes a verification target, or a defect.
+ *
+ * The procedure, document and fee-component branches all resolve a selector
+ * and all judge the result the same way, so they judge it in one place. The
+ * asymmetry that matters is between NEGATIVELY_RESOLVED - the decision
+ * explicitly ruled the target out, so the question is moot - and MISSING,
+ * where nothing decided it at all and the rule is pointing at something that
+ * does not exist.
+ */
+type SelectorOutcome<K> =
+  | Readonly<{ state: "MATCHED"; key: K }>
+  | Readonly<{ state: "NEGATIVELY_RESOLVED" }>
+  | Readonly<{ state: "MISSING" }>
+  | Readonly<{ state: "AMBIGUOUS"; candidates: readonly string[] }>
+  | Readonly<{ state: "UNRESOLVED_TEMPLATE" }>;
+
+type MatchedOrNot<K> =
+  | Readonly<{ state: "MATCHED"; key: K }>
+  | Readonly<{ state: "NOT_APPLICABLE" }>;
+
+function classifySelectorOutcome<K>(
+  resolved: SelectorOutcome<K>,
+  ruleId: RuleId,
+  detail: string,
+): Result<MatchedOrNot<K>, EngineError> {
+  switch (resolved.state) {
+    case "MATCHED":
+      return ok({ state: "MATCHED", key: resolved.key });
+    case "NEGATIVELY_RESOLVED":
+      return ok({ state: "NOT_APPLICABLE" });
+    case "AMBIGUOUS":
+      return err(
+        ruleConfigurationError(
+          "VERIFICATION_TARGET_AMBIGUOUS",
+          `${detail} and matches ${resolved.candidates.join(", ")}`,
+          ruleId,
+        ),
+      );
+    case "MISSING":
+      return err(missing(ruleId, `${detail}, which this case does not require`));
+    case "UNRESOLVED_TEMPLATE":
+      return err(
+        ruleConfigurationError(
+          "PARAMETER_FACT_UNRESOLVED",
+          `${detail} whose selector depends on an unknown fact`,
+          ruleId,
+        ),
+      );
+  }
 }
 
-/**
- * Resolves what an unresolved rule asks a human to verify.
- *
- * There is deliberately no fallback to `{ kind: "CASE" }`. A rule that names a
- * procedure and cannot be pointed at one is not "a question about the case in
- * general" - it is a rule that no longer matches the knowledge base, and
- * silently widening its target would hide exactly that.
- */
 export function resolveVerificationTarget(
   template: VerificationTargetTemplate,
   binding: ScopeBinding | null,
@@ -84,29 +124,20 @@ export function resolveVerificationTarget(
       if (!resolved.ok) {
         return resolved;
       }
-      const detail = `verification targets procedure "${template.targetProcedure.procedureId}"`;
-      switch (resolved.value.state) {
-        case "MATCHED":
-          return ok({
-            state: "RESOLVED",
-            target: { kind: "PROCEDURE", procedureKey: resolved.value.key },
-          });
-        case "NEGATIVELY_RESOLVED":
-          return ok({ state: "NOT_APPLICABLE" });
-        case "AMBIGUOUS":
-          return err(ambiguous(ruleId, `${detail} and matches ${resolved.value.candidates.join(", ")}`));
-        case "MISSING":
-          return err(missing(ruleId, `${detail}, which this case does not require`));
-        case "UNRESOLVED_TEMPLATE":
-          return err(
-            ruleConfigurationError(
-              "PARAMETER_FACT_UNRESOLVED",
-              `${detail} whose parameters depend on an unknown fact`,
-              ruleId,
-            ),
-          );
+      const outcome = classifySelectorOutcome(
+        resolved.value,
+        ruleId,
+        `verification targets procedure "${template.targetProcedure.procedureId}"`,
+      );
+      if (!outcome.ok) {
+        return outcome;
       }
-      break;
+      return outcome.value.state === "NOT_APPLICABLE"
+        ? ok({ state: "NOT_APPLICABLE" })
+        : ok({
+            state: "RESOLVED",
+            target: { kind: "PROCEDURE", procedureKey: outcome.value.key },
+          });
     }
 
     case "DOCUMENT": {
@@ -121,29 +152,20 @@ export function resolveVerificationTarget(
       if (!resolved.ok) {
         return resolved;
       }
-      const detail = `verification targets document "${template.targetDocument.documentTypeId}"`;
-      switch (resolved.value.state) {
-        case "MATCHED":
-          return ok({
-            state: "RESOLVED",
-            target: { kind: "DOCUMENT", documentKey: resolved.value.key },
-          });
-        case "NEGATIVELY_RESOLVED":
-          return ok({ state: "NOT_APPLICABLE" });
-        case "AMBIGUOUS":
-          return err(ambiguous(ruleId, `${detail} and matches ${resolved.value.candidates.join(", ")}`));
-        case "MISSING":
-          return err(missing(ruleId, `${detail}, which this case does not require`));
-        case "UNRESOLVED_TEMPLATE":
-          return err(
-            ruleConfigurationError(
-              "PARAMETER_FACT_UNRESOLVED",
-              `${detail} whose selector depends on an unknown fact`,
-              ruleId,
-            ),
-          );
+      const outcome = classifySelectorOutcome(
+        resolved.value,
+        ruleId,
+        `verification targets document "${template.targetDocument.documentTypeId}"`,
+      );
+      if (!outcome.ok) {
+        return outcome;
       }
-      break;
+      return outcome.value.state === "NOT_APPLICABLE"
+        ? ok({ state: "NOT_APPLICABLE" })
+        : ok({
+            state: "RESOLVED",
+            target: { kind: "DOCUMENT", documentKey: outcome.value.key },
+          });
     }
 
     case "FEE_COMPONENT": {
@@ -158,25 +180,14 @@ export function resolveVerificationTarget(
         return resolved;
       }
       const detail = `fee verification targets component "${template.componentCode}" of procedure "${template.targetProcedure.procedureId}"`;
-      switch (resolved.value.state) {
-        case "MATCHED":
-          break;
-        case "NEGATIVELY_RESOLVED":
-          return ok({ state: "NOT_APPLICABLE" });
-        case "AMBIGUOUS":
-          return err(ambiguous(ruleId, `${detail} and matches ${resolved.value.candidates.join(", ")}`));
-        case "MISSING":
-          return err(missing(ruleId, `${detail}, which this case does not require`));
-        case "UNRESOLVED_TEMPLATE":
-          return err(
-            ruleConfigurationError(
-              "PARAMETER_FACT_UNRESOLVED",
-              `${detail} whose parameters depend on an unknown fact`,
-              ruleId,
-            ),
-          );
+      const outcome = classifySelectorOutcome(resolved.value, ruleId, detail);
+      if (!outcome.ok) {
+        return outcome;
       }
-      const procedureKey = resolved.value.key as RequiredProcedureKey;
+      if (outcome.value.state === "NOT_APPLICABLE") {
+        return ok({ state: "NOT_APPLICABLE" });
+      }
+      const procedureKey = outcome.value.key as RequiredProcedureKey;
       const componentKey = `${procedureKey as string}|${template.componentCode as string}`;
       if (!context.feeComponentKeys.has(componentKey)) {
         return err(missing(ruleId, `${detail}, which this case does not calculate`));
@@ -191,6 +202,4 @@ export function resolveVerificationTarget(
       });
     }
   }
-  /* v8 ignore next 3 -- the switch above is exhaustive over a closed union; the guard exists so a future variant fails loudly. */
-  return err(missing(ruleId, "unsupported verification target template"));
 }

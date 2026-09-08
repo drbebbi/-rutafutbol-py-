@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { PRODUCTION_BASE_URL } from "../../playwright.config";
 
 test("security headers are present on a public response", async ({ request }) => {
   const response = await request.get("/");
@@ -51,4 +52,17 @@ test("an unknown route renders the not-found page", async ({ page }) => {
   const response = await page.goto("/no-such-page");
   expect(response?.status()).toBe(404);
   await expect(page.getByTestId("not-found")).toBeVisible();
+});
+
+test("a production build refuses the synthetic knowledge route even when it is switched on", async ({
+  request,
+}) => {
+  // Same environment variables as the development server, which serves it
+  // happily. The production build refuses on the build itself, so no
+  // deployment mistake can turn invented rules into a live answer.
+  const response = await request.post(`${PRODUCTION_BASE_URL}/api/test-fixtures/evaluate`, {
+    headers: { origin: PRODUCTION_BASE_URL },
+    data: { citizenship: "DE", residence: "NONE" },
+  });
+  expect(response.status()).toBe(404);
 });

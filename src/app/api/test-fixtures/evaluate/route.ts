@@ -12,6 +12,7 @@ import { createEvaluationExecutionContext } from "../../../../case-engine/date-m
 import { evaluateCase } from "../../../../case-engine/evaluate/evaluate-case";
 import { prepareEngineReadyBundle } from "../../../../rules/bundle/engine-ready-bundle";
 import { syntheticKnowledgeBundle } from "./synthetic-knowledge";
+import { syntheticKnowledgeEnabled } from "../../../../infrastructure/environment/synthetic-knowledge";
 import type { InstantString } from "../../../../domain/primitives/instant";
 
 export const runtime = "nodejs";
@@ -25,15 +26,10 @@ export const dynamic = "force-dynamic";
  * about Paraguayan law, and it refuses to run unless explicitly enabled and
  * outside production.
  */
-function isEnabled(): boolean {
-  const environment = process.env["CEDULA_ENVIRONMENT"] ?? "LOCAL";
-  return process.env["CEDULA_SYNTHETIC_KNOWLEDGE"] === "1" && environment !== "PRODUCTION";
-}
-
 export async function POST(request: Request): Promise<NextResponse> {
   const correlationId = randomUUID();
 
-  if (!isEnabled()) {
+  if (!syntheticKnowledgeEnabled(process.env)) {
     return NextResponse.json({ ok: false, code: "NOT_FOUND", message: "Not found", correlationId }, { status: 404 });
   }
 

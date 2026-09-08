@@ -34,6 +34,21 @@ jobs:
       - run: npm run test:coverage
       - run: npm run build
 
+  release-gate:
+    name: Release gate (Phase 2D golden corpus)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      # Fails while the approved Phase 2D corpus is not materialised. Its own
+      # job, so the signal is unambiguous and does not mask a real regression
+      # in another lane.
+      - run: npm run release:gate
+
   database:
     name: Migrations, pgTAP and persistence
     runs-on: ubuntu-latest
@@ -66,6 +81,51 @@ jobs:
       - run: npm run test:persistence
       - run: npm run test:integration
 
+  supabase:
+    name: Supabase migrations, lint, exposure and generated types
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - name: Install the Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          # Pinned: a CLI that drifts changes what "the migrations apply
+          # cleanly" means from one run to the next.
+          version: 2.34.3
+      - name: Start the local stack
+        run: supabase start
+      - name: Apply the migrations from scratch
+        run: supabase db reset
+      - name: Lint the schema
+        run: supabase db lint --level warning --fail-on warning
+      - name: Run the pgTAP suite
+        run: supabase test db
+      - name: Verify migration 0000 is a no-op on a real platform
+        # The compatibility shim exists so the migrations run on a bare
+        # Postgres. On a real Supabase database it must create nothing: if it
+        # does, it is redefining platform objects rather than standing in for
+        # them.
+        run: npm run verify:shim
+      - name: Verify the Data API exposes only `app`
+        run: npm run verify:exposure
+      - name: Regenerate the database types
+        run: npm run db:types
+      - name: Fail on generated-type drift
+        # The committed types are what the application compiles against. A
+        # schema change that does not update them is a change the type checker
+        # cannot see. The file must be tracked as well as unchanged: an
+        # untracked file produces no diff and would pass silently.
+        run: |
+          git ls-files --error-unmatch src/infrastructure/supabase/database.types.ts \
+            || { echo "src/infrastructure/supabase/database.types.ts is not committed. Commit the generated file."; exit 1; }
+          git diff --exit-code -- src/infrastructure/supabase/database.types.ts \
+            || { echo "The committed database types no longer match the schema. Run npm run db:types and commit the result."; exit 1; }
+
   e2e:
     name: End-to-end
     runs-on: ubuntu-latest
@@ -82,6 +142,9 @@ jobs:
       - run: npm ci
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium webkit
+      # Both servers are started by the Playwright config: a development server
+      # for the specs that drive the synthetic fixture route, and this
+      # production build for the spec that proves the route is refused on one.
       - run: npm run build
       # Release matrix: mobile Chromium, mobile WebKit, desktop Chromium.
       - run: npm run test:e2e

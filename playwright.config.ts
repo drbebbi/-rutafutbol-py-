@@ -40,16 +40,42 @@ export default defineConfig({
     { name: "mobile-chromium", use: { ...devices["Pixel 7"], ...chromiumOverride } },
     { name: "mobile-webkit", use: { ...devices["iPhone 14"] } },
   ],
-  webServer: {
-    command: "npm run start -- --port 3100 --hostname 127.0.0.1",
-    url: "http://127.0.0.1:3100",
-    reuseExistingServer: !isCI,
-    timeout: 120_000,
-    env: {
-      NODE_ENV: "production",
-      CEDULA_ENVIRONMENT: "LOCAL",
-      // Enables the controlled synthetic fixture route. Refused in production.
-      CEDULA_SYNTHETIC_KNOWLEDGE: "1",
+  /*
+   * Two servers, because the fixture route's gate is part of what is tested.
+   *
+   * The synthetic-knowledge route is hard-disabled in a production build, so
+   * the specs that drive it need a development server. Proving that it *is*
+   * disabled needs the production build - a claim that can only be made by
+   * running one. So both are started, and the production build answers on its
+   * own port at PRODUCTION_BASE_URL.
+   */
+  webServer: [
+    {
+      command: "npm run dev -- --port 3100 --hostname 127.0.0.1",
+      url: "http://127.0.0.1:3100",
+      reuseExistingServer: !isCI,
+      timeout: 120_000,
+      env: {
+        CEDULA_ENVIRONMENT: "LOCAL",
+        // Enables the controlled synthetic fixture route. Refused in a
+        // production build whatever this says.
+        CEDULA_SYNTHETIC_KNOWLEDGE: "1",
+      },
     },
-  },
+    {
+      command: "npm run start -- --port 3101 --hostname 127.0.0.1",
+      url: "http://127.0.0.1:3101",
+      reuseExistingServer: !isCI,
+      timeout: 120_000,
+      env: {
+        CEDULA_ENVIRONMENT: "LOCAL",
+        // Deliberately switched on: the point is that a production build
+        // refuses anyway.
+        CEDULA_SYNTHETIC_KNOWLEDGE: "1",
+      },
+    },
+  ],
 });
+
+/** Where the production build answers, for the specs that need one. */
+export const PRODUCTION_BASE_URL = "http://127.0.0.1:3101";

@@ -41,11 +41,6 @@ export type RuleInstance = Readonly<{
   provenance: ProvenanceRef;
 }>;
 
-/** True when this instance states a consequence rather than a verification. */
-export function statesConsequence(instance: RuleInstance): boolean {
-  return instance.unresolved === null;
-}
-
 function provenanceOf(revision: RuleRevision): ProvenanceRef {
   return {
     ruleId: revision.ruleId,

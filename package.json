@@ -4,7 +4,7 @@
   "private": true,
   "description": "Cedula PY - technical foundation (Phase 3). Mobile-first PWA helping foreigners understand and organise their first Paraguayan cedula.",
   "engines": {
-    "node": ">=24.0.0"
+    "node": ">=24 <25"
   },
   "type": "module",
   "scripts": {
@@ -30,6 +30,9 @@
     "validate:rules": "tsx scripts/validate-rules.ts",
     "validate:sources": "tsx scripts/validate-sources.ts",
     "verify:bundle": "tsx scripts/verify-evaluation-bundle.ts",
+    "release:gate": "tsx scripts/release-gate.ts",
+    "verify:shim": "tsx scripts/verify-platform-shim.ts",
+    "verify:exposure": "tsx scripts/verify-data-api-exposure.ts",
     "check:boundaries": "tsx scripts/check-boundaries.ts",
     "db:reset": "tsx scripts/db-reset.ts",
     "db:types": "supabase gen types typescript --local --schema app,core,research,audit,security > src/infrastructure/supabase/database.types.ts"

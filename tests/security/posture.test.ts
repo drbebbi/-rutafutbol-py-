@@ -1,4 +1,8 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
+import {
+  syntheticKnowledgeEnabled,
+  SYNTHETIC_KNOWLEDGE_ENVIRONMENTS,
+} from "../../src/infrastructure/environment/synthetic-knowledge";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { summariseDecision, wizardAnswersToFacts } from "../../src/application/cases/wizard-mapping";
@@ -271,5 +275,49 @@ describe("anonymous privacy", () => {
     const seed = readFileSync(join(root, "supabase", "seed.sql"), "utf8");
     expect(seed).toContain("DELIBERATELY CONTAINS NO LEGAL RULES");
     expect(seed.toLowerCase()).not.toContain("insert into core.rule_revisions");
+  });
+});
+
+describe("the synthetic knowledge fixture route", () => {
+  /**
+   * The route serves invented rules. It has to be impossible to switch on by
+   * accident, so every condition is checked explicitly and none defaults to
+   * "enabled".
+   */
+  const enabled = { NODE_ENV: "development", CEDULA_ENVIRONMENT: "LOCAL", CEDULA_SYNTHETIC_KNOWLEDGE: "1" };
+
+  it("serves only when every condition is met explicitly", () => {
+    expect(syntheticKnowledgeEnabled(enabled)).toBe(true);
+    for (const environment of SYNTHETIC_KNOWLEDGE_ENVIRONMENTS) {
+      expect(syntheticKnowledgeEnabled({ ...enabled, CEDULA_ENVIRONMENT: environment })).toBe(true);
+    }
+  });
+
+  it("refuses in a production build, whatever else is set", () => {
+    expect(syntheticKnowledgeEnabled({ ...enabled, NODE_ENV: "production" })).toBe(false);
+  });
+
+  it("refuses when the environment is unset, rather than assuming LOCAL", () => {
+    expect(syntheticKnowledgeEnabled({ ...enabled, CEDULA_ENVIRONMENT: undefined })).toBe(false);
+  });
+
+  it("refuses an environment it does not recognise", () => {
+    // Including PRODUCTION, but the point is the default: a renamed or
+    // misspelled environment is refused, not waved through.
+    for (const environment of ["PRODUCTION", "STAGING", "local", "", "Local"]) {
+      expect(syntheticKnowledgeEnabled({ ...enabled, CEDULA_ENVIRONMENT: environment }), environment).toBe(false);
+    }
+  });
+
+  it("refuses unless synthetic knowledge is switched on by name", () => {
+    expect(syntheticKnowledgeEnabled({ ...enabled, CEDULA_SYNTHETIC_KNOWLEDGE: "0" })).toBe(false);
+    expect(syntheticKnowledgeEnabled({ ...enabled, CEDULA_SYNTHETIC_KNOWLEDGE: "true" })).toBe(false);
+    expect(syntheticKnowledgeEnabled({ ...enabled, CEDULA_SYNTHETIC_KNOWLEDGE: undefined })).toBe(false);
+  });
+
+  it("reads the gate rather than re-deriving it in the route", () => {
+    const route = sourceFiles.find((file) => file.path.endsWith("test-fixtures/evaluate/route.ts"));
+    expect(route?.source).toContain("syntheticKnowledgeEnabled(process.env)");
+    expect(route?.source).not.toContain("!== \"PRODUCTION\"");
   });
 });

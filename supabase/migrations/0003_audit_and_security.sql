@@ -83,6 +83,33 @@ $$;
 revoke all on function security.has_admin_role(text) from public;
 grant execute on function security.has_admin_role(text) to authenticated, cedula_admin_runtime_role;
 
+-- The same question for a user the server has already verified.
+--
+-- The internal runtime roles have no session identity of their own, so a
+-- server-side path states which administrator is acting and the database
+-- answers for that user. `auth.uid()` is not consulted here at all, which is
+-- what lets a privileged path run outside a request context without inventing
+-- a session.
+create function security.has_admin_role_for(p_user_id uuid, p_role text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from security.admin_authorizations a
+    where a.user_id = p_user_id
+      and a.admin_role = p_role
+      and a.revoked_at is null
+  );
+$$;
+
+revoke all on function security.has_admin_role_for(uuid, text) from public;
+grant execute on function security.has_admin_role_for(uuid, text)
+  to cedula_runtime_role, cedula_admin_runtime_role;
+
 create function security.is_any_admin()
 returns boolean
 language sql

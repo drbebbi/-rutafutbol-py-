@@ -42,7 +42,8 @@ maybe("knowledge publication", () => {
     const result = await client.query<{ rule_revision_id: string }>(
       `insert into core.rule_revisions (rule_id, rule_set_revision_id, version, publication_status,
          verification_status, valid_from, valid_until, payload_schema_version, payload)
-       values ($1,$2,$3,$4,'CONFIRMED',$5,$6,'rule-payload@1.0','{}'::jsonb)
+       values ($1,$2,$3,$4,'CONFIRMED',$5,$6,'rule-payload@2.0',
+         '{"family":"WARNING","scope":"CASE","condition":{"kind":"CONSTANT","value":"TRUE"},"precedence":[],"resolution":{"state":"RESOLVED","consequence":{"code":"FEE_MAY_CHANGE","severity":"INFO","qualifier":null}}}'::jsonb)
        returning rule_revision_id`,
       [ruleId, ruleSetRevisionId, version, status, validFrom, validUntil],
     );
@@ -55,7 +56,7 @@ maybe("knowledge publication", () => {
 
     const hash = fakeHash("abc");
     await asRole(client, "cedula_admin_runtime_role", ADMIN, async () =>
-      client.query("select core.publish_rule_revision($1, $2, $3, $4)", [successor, "2026-07-01", hash, hash]),
+      client.query("select core.publish_rule_revision($1,$2,$3,$4,$5)", [ADMIN, successor, "2026-07-01", hash, hash]),
     );
 
     const rows = await client.query<{ version: number; publication_status: string; valid_until: string | null }>(
@@ -67,11 +68,14 @@ maybe("knowledge publication", () => {
     expect(rows.rows[1]?.publication_status).toBe("PUBLISHED");
   });
 
-  it("refuses to publish against a candidate that has moved since it was approved", async () => {
+  it("refuses to publish when the verified candidate differs from the approval", async () => {
+    // The publication transaction recomputes the second hash from the locked
+    // knowledge base; this test stands in for it having found a different one.
     const revision = await insertRevision(3, "APPROVED", "2027-01-01", null);
     await expect(
       asRole(client, "cedula_admin_runtime_role", ADMIN, async () =>
-        client.query("select core.publish_rule_revision($1,$2,$3,$4)", [
+        client.query("select core.publish_rule_revision($1,$2,$3,$4,$5)", [
+          ADMIN,
           revision,
           "2027-01-01",
           fakeHash("aaa"),
@@ -86,7 +90,7 @@ maybe("knowledge publication", () => {
     const hash = fakeHash("ccc");
     await expect(
       asRole(client, "cedula_admin_runtime_role", ADMIN, async () =>
-        client.query("select core.publish_rule_revision($1,$2,$3,$4)", [revision, "2028-01-01", hash, hash]),
+        client.query("select core.publish_rule_revision($1,$2,$3,$4,$5)", [ADMIN, revision, "2028-01-01", hash, hash]),
       ),
     ).rejects.toThrow(/only an APPROVED revision/u);
   });
@@ -96,7 +100,10 @@ maybe("knowledge publication", () => {
     const hash = fakeHash("ddd");
     await expect(
       asRole(client, "cedula_admin_runtime_role", USER_A, async () =>
-        client.query("select core.publish_rule_revision($1,$2,$3,$4)", [revision, "2029-01-01", hash, hash]),
+        // USER_A is signed in but holds no publisher authority; the acting
+        // administrator is now named explicitly, so this is not a question
+        // about the session at all.
+        client.query("select core.publish_rule_revision($1,$2,$3,$4,$5)", [USER_A, revision, "2029-01-01", hash, hash]),
       ),
     ).rejects.toThrow(/not authorized to publish/u);
   });
@@ -119,7 +126,7 @@ maybe("knowledge publication", () => {
       await client.query("begin");
       await client.query(`select set_config('request.jwt.claims', $1, true)`, [JSON.stringify({ sub: ADMIN })]);
       await client.query("set local role cedula_admin_runtime_role");
-      await client.query("select core.publish_rule_revision($1,$2,$3,$4)", [first, "2030-01-01", hash, hash]);
+      await client.query("select core.publish_rule_revision($1,$2,$3,$4,$5)", [ADMIN, first, "2030-01-01", hash, hash]);
 
       // The second publisher must block on the row lock rather than racing.
       await other.query("begin");
@@ -127,7 +134,7 @@ maybe("knowledge publication", () => {
       await other.query("set local role cedula_admin_runtime_role");
       await other.query("set local lock_timeout = '400ms'");
       const contended = other
-        .query("select core.publish_rule_revision($1,$2,$3,$4)", [second, "2031-01-01", hash, hash])
+        .query("select core.publish_rule_revision($1,$2,$3,$4,$5)", [ADMIN, second, "2031-01-01", hash, hash])
         .then(() => "completed")
         .catch((error: unknown) => String(error));
 

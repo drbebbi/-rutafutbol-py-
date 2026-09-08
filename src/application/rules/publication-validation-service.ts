@@ -54,7 +54,9 @@ export type PublicationImpactReport = Readonly<{
 
 export type PublicationValidationFailure =
   | Readonly<{ kind: "SCHEMA"; detail: string }>
-  | Readonly<{ kind: "BUNDLE"; issues: readonly BundleValidationIssue[] }>;
+  | Readonly<{ kind: "BUNDLE"; issues: readonly BundleValidationIssue[] }>
+  /** A corpus case the validator could not evaluate at all. */
+  | Readonly<{ kind: "CORPUS"; caseId: string; detail: string }>;
 
 function statusOf(decision: Result<CaseEvaluationDecision, unknown>): string | null {
   return decision.ok ? decision.value.caseClassification.status : null;
@@ -111,7 +113,17 @@ export function validatePublicationCandidate(
       jurisdictionTimeZone: JURISDICTION_TIME_ZONE,
     });
     if (!context.ok) {
-      continue;
+      /*
+       * A corpus case that cannot even be set up is a failure, not a case to
+       * step over. Skipping it while still counting it in `totalCases` would
+       * report a safety run that never happened - the one number a reviewer
+       * reads before approving a publication.
+       */
+      return err({
+        kind: "CORPUS",
+        caseId: entry.caseId,
+        detail: `${context.error.kind}:${context.error.code}`,
+      });
     }
     const after = evaluateCase(entry.facts, context.value, candidateBundle.value, CURRENT_ENGINE_DESCRIPTOR);
     const before = baselineBundle.ok
@@ -147,7 +159,9 @@ export function validatePublicationCandidate(
   return ok({
     candidateBundleHash: evaluationBundleContentHash(candidate),
     ruleIds: candidate.ruleRevisions.map((revision) => revision.ruleId),
-    totalCases: corpus.length,
+    // The number of cases actually evaluated, which the guard above keeps
+    // equal to the corpus size.
+    totalCases: perCase.length,
     unchanged,
     changed,
     newlyFailing,

@@ -166,11 +166,23 @@ grant execute on function app.erase_user_case(uuid) to cedula_runtime_role, cedu
 -- predecessor's open window, publish the successor, write the audit event.
 -- The lock is taken on the row, not as a session advisory lock, so it is
 -- released with the transaction and survives connection pooling.
+-- Publication.
+--
+-- The caller states which candidate was approved. It deliberately cannot state
+-- what the candidate *is* now: an "actual hash" parameter would let the same
+-- caller answer both halves of the staleness question, so the two would always
+-- agree and the check would prove nothing. The actual hash is recomputed from
+-- the knowledge base inside this transaction, with the production assembly and
+-- hashing, and compared against the approval.
+--
+-- The advisory lock serialises publications against each other, so the
+-- recomputation cannot be overtaken between the check and the write.
 create function core.publish_rule_revision(
+  p_actor_user_id uuid,
   p_rule_revision_id uuid,
   p_valid_from date,
   p_approved_candidate_hash core.sha256_hex,
-  p_actual_candidate_hash core.sha256_hex
+  p_verified_candidate_hash core.sha256_hex
 ) returns void
 language plpgsql
 security definer
@@ -181,16 +193,28 @@ declare
   v_status core.publication_status;
   v_predecessor uuid;
 begin
-  if not security.has_admin_role('PUBLISHER') and not security.has_admin_role('ADMIN') then
+  -- The acting administrator is named by the server, which verified them, and
+  -- checked here against the authorization table. The publication path runs as
+  -- an internal role with no session of its own, so there is no auth.uid() to
+  -- consult - and relying on one would tie publication to a request context it
+  -- does not have.
+  if not security.has_admin_role_for(p_actor_user_id, 'PUBLISHER')
+     and not security.has_admin_role_for(p_actor_user_id, 'ADMIN') then
     raise exception 'not authorized to publish rules';
   end if;
 
-  -- Publication approval is bound to the exact validated candidate. If the
-  -- candidate moved since it was approved, publishing would ship something
-  -- nobody validated.
-  if p_approved_candidate_hash is distinct from p_actual_candidate_hash then
+  -- Serialise publications. Re-acquiring inside a transaction that already
+  -- holds it is free, so the application transaction service can take it
+  -- before it assembles the candidate and still call in here.
+  perform pg_advisory_xact_lock(hashtext('cedula.publication'));
+
+  -- `p_verified_candidate_hash` is the hash the publication transaction
+  -- recomputed from the locked knowledge base moments ago, not a number the
+  -- publisher chose. If the candidate moved since approval, publishing would
+  -- ship something nobody validated.
+  if p_approved_candidate_hash is distinct from p_verified_candidate_hash then
     raise exception 'STALE_PUBLICATION_VALIDATION: approved % but candidate is now %',
-      p_approved_candidate_hash, p_actual_candidate_hash;
+      p_approved_candidate_hash, p_verified_candidate_hash;
   end if;
 
   select r.rule_id, r.publication_status into v_rule_id, v_status
@@ -232,20 +256,20 @@ begin
 
   insert into audit.admin_audit_events (actor_user_id, action, target_kind, target_ref, detail_jsonb)
   values (
-    auth.uid(),
+    p_actor_user_id,
     'PUBLISH_RULE_REVISION',
     'RULE_REVISION',
     p_rule_revision_id::text,
     jsonb_build_object(
       'ruleId', v_rule_id,
       'validFrom', p_valid_from,
-      'candidateBundleHash', p_actual_candidate_hash,
+      'candidateBundleHash', p_verified_candidate_hash,
       'supersededRevisionId', v_predecessor
     )
   );
 end;
 $$;
 
-revoke all on function core.publish_rule_revision(uuid, date, core.sha256_hex, core.sha256_hex) from public;
-grant execute on function core.publish_rule_revision(uuid, date, core.sha256_hex, core.sha256_hex)
+revoke all on function core.publish_rule_revision(uuid, uuid, date, core.sha256_hex, core.sha256_hex) from public;
+grant execute on function core.publish_rule_revision(uuid, uuid, date, core.sha256_hex, core.sha256_hex)
   to cedula_admin_runtime_role;

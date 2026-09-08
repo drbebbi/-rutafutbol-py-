@@ -27,7 +27,7 @@ export function createKnowledgeReadAdapter(connectionString: string): KnowledgeR
       let outcome: BundleOutcome | null = null;
       try {
         await sql.begin("isolation level repeatable read", async (tx: Tx) => {
-          outcome = await loadBundle(tx, effectiveLocalDate);
+          outcome = await loadBundle(tx, effectiveLocalDate, null);
         });
         return (
           outcome ??
@@ -59,8 +59,35 @@ export function createKnowledgeReadAdapter(connectionString: string): KnowledgeR
  */
 type BundleOutcome = Awaited<ReturnType<KnowledgeReadPort["loadBundleContentFor"]>>;
 
-async function loadBundle(tx: Tx, effectiveLocalDate: LocalDate): Promise<BundleOutcome> {
+/**
+ * A revision that is being published, seen as if it already were.
+ *
+ * Publication has to hash the knowledge base *as it would be* once the
+ * approved revision goes live, and it has to do so with the same assembly the
+ * runtime uses - not a second, similar-looking query that could drift from it.
+ * So the one query takes a promotion: treat this APPROVED revision as
+ * PUBLISHED, and drop the open-ended predecessor whose window publication
+ * would close.
+ */
+export type CandidatePromotion = Readonly<{
+  ruleRevisionId: string;
+}>;
+
+export async function loadBundleContentInTransaction(
+  tx: Tx,
+  effectiveLocalDate: LocalDate,
+  promotion: CandidatePromotion | null = null,
+): Promise<BundleOutcome> {
+  return loadBundle(tx, effectiveLocalDate, promotion);
+}
+
+async function loadBundle(
+  tx: Tx,
+  effectiveLocalDate: LocalDate,
+  promotion: CandidatePromotion | null = null,
+): Promise<BundleOutcome> {
   const on = effectiveLocalDate as string;
+  const promoted = promotion === null ? null : promotion.ruleRevisionId;
 
   const ruleSetRevisions = await tx<Record<string, unknown>[]>`
     select rule_set_revision_id, rule_set_id, publication_status,
@@ -88,8 +115,18 @@ async function loadBundle(tx: Tx, effectiveLocalDate: LocalDate): Promise<Bundle
              '[]'::jsonb) as evidence
     from core.rule_revisions r
     join core.rules rs on rs.rule_id = r.rule_id
-    where r.publication_status in ('PUBLISHED','SUPERSEDED')
-      and r.valid_from <= ${on}::date and (r.valid_until is null or r.valid_until >= ${on}::date)
+    where r.valid_from <= ${on}::date and (r.valid_until is null or r.valid_until >= ${on}::date)
+      and (
+        r.publication_status in ('PUBLISHED','SUPERSEDED')
+        or (${promoted}::uuid is not null and r.rule_revision_id = ${promoted}::uuid)
+      )
+      -- The predecessor publication would close is not part of the candidate.
+      and not (
+        ${promoted}::uuid is not null
+        and r.publication_status = 'PUBLISHED'
+        and r.valid_until is null
+        and r.rule_id = (select p.rule_id from core.rule_revisions p where p.rule_revision_id = ${promoted}::uuid)
+      )
     order by r.rule_id`;
 
   const evidence = await tx<Record<string, unknown>[]>`

@@ -2,7 +2,12 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type pg from "pg";
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { connect, databaseAvailable, DATABASE_URL, uniqueSlug } from "../persistence/db";
+import { ADMIN, connect, databaseAvailable, DATABASE_URL, uniqueSlug } from "../persistence/db";
+import {
+  computeCandidateBundleHash,
+  createRulePublicationAdapter,
+} from "../../src/infrastructure/repositories/internal/publication-adapter";
+import type { RuleRevisionId, UserId } from "../../src/domain/identifiers/identifiers";
 import { createKnowledgeReadAdapter } from "../../src/infrastructure/repositories/public-read/knowledge-read-adapter";
 import { evaluateCaseForUser } from "../../src/application/evaluations/evaluate-case-service";
 import { canonicalContentHash } from "../../src/infrastructure/hashing/content-hash";
@@ -232,5 +237,166 @@ maybe("knowledge pipeline", () => {
     const b = await store.materialize(hash, content.value.schemaVersion, content.value);
     expect(a.ok && b.ok).toBe(true);
     expect(a.ok && b.ok && a.value).toBe(b.ok ? b.value : "");
+  });
+});
+
+/**
+ * Publication drift, end to end.
+ *
+ * The scenario the audit asked for: a candidate is validated and its hash H1
+ * approved; a *different* decision-affecting rule then changes; publishing
+ * against H1 must fail. It has to fail even though the publisher passes the
+ * approved hash and nothing else, because the publication transaction is the
+ * only party that gets to say what the candidate currently is.
+ */
+maybe("publication drift detection", () => {
+  let client: pg.Client;
+  const ids = {
+    authority: uniqueSlug("d.authority"),
+    ruleSet: uniqueSlug("d.set"),
+    target: uniqueSlug("d.rule.target"),
+    other: uniqueSlug("d.rule.other"),
+    source: uniqueSlug("d.source"),
+    policy: uniqueSlug("d.policy"),
+    pathwayDefinition: uniqueSlug("d.pathway"),
+    pathway: uniqueSlug("d.pathway-id"),
+  };
+  let ruleSetRevisionId = "";
+  let sourceRevisionId = "";
+  const on = "2026-06-15" as LocalDate;
+
+  const warningPayload = (severity: string): string =>
+    JSON.stringify({
+      family: "WARNING",
+      scope: "CASE",
+      condition: { kind: "CONSTANT", value: "TRUE" },
+      precedence: [],
+      resolution: {
+        state: "RESOLVED",
+        consequence: { code: "FEE_MAY_CHANGE", severity, qualifier: null },
+      },
+    });
+
+  async function insertRule(ruleId: string, status: string, payload: string): Promise<string> {
+    await client.query("insert into core.rules (rule_id, rule_set_id, label) values ($1,$2,'Test')", [
+      ruleId,
+      ids.ruleSet,
+    ]);
+    const inserted = await client.query<{ rule_revision_id: string }>(
+      `insert into core.rule_revisions (rule_id, rule_set_revision_id, version, publication_status,
+         verification_status, valid_from, payload_schema_version, payload)
+       values ($1,$2,1,$3,'CONFIRMED','2000-01-01','rule-payload@2.0',$4::jsonb)
+       returning rule_revision_id`,
+      [ruleId, ruleSetRevisionId, status, payload],
+    );
+    const revisionId = inserted.rows[0]?.rule_revision_id as string;
+    await client.query(
+      `insert into core.rule_evidence
+         (rule_revision_id, source_revision_id, role, claim_summary, citation_detail, quote)
+       values ($1,$2,'SUPPORTS','synthetic','synthetic',null)`,
+      [revisionId, sourceRevisionId],
+    );
+    return revisionId;
+  }
+
+  beforeAll(async () => {
+    client = await connect();
+    await client.query("delete from core.rule_evidence");
+    await client.query("delete from core.rule_revisions");
+    await client.query("delete from core.rules");
+
+    await client.query("insert into core.countries (country_code, label) values ('DE','Germany') on conflict do nothing");
+    await client.query("insert into core.authorities (authority_id, country_code, label) values ($1,'DE','Test')", [ids.authority]);
+    await client.query("insert into core.sources (source_id, authority_id, kind, citation) values ($1,$2,'OFFICIAL_WEBSITE','synthetic')", [ids.source, ids.authority]);
+    sourceRevisionId = (
+      await client.query<{ source_revision_id: string }>(
+        "insert into core.source_revisions (source_id, publication_status, language, retrieved_at, locator) values ($1,'PUBLISHED','es', now(), 'synthetic://d') returning source_revision_id",
+        [ids.source],
+      )
+    ).rows[0]?.source_revision_id as string;
+    await client.query("insert into core.rule_sets (rule_set_id, label) values ($1,'Test')", [ids.ruleSet]);
+    ruleSetRevisionId = (
+      await client.query<{ rule_set_revision_id: string }>(
+        "insert into core.rule_set_revisions (rule_set_id, publication_status, valid_from) values ($1,'PUBLISHED','2000-01-01') returning rule_set_revision_id",
+        [ids.ruleSet],
+      )
+    ).rows[0]?.rule_set_revision_id as string;
+
+    await client.query(
+      "insert into security.admin_authorizations (user_id, admin_role) values ($1,'ADMIN'),($1,'PUBLISHER') on conflict do nothing",
+      [ADMIN],
+    );
+  });
+
+  afterAll(async () => {
+    await client.end();
+  });
+
+  it("refuses to publish once another decision-affecting rule has changed", async () => {
+    const target = await insertRule(ids.target, "APPROVED", warningPayload("INFO"));
+    const other = await insertRule(ids.other, "PUBLISHED", warningPayload("INFO"));
+
+    // Validate the candidate: the knowledge base as it would be with the
+    // approved revision live. This is the hash a publisher approves.
+    const approved = await computeCandidateBundleHash(DATABASE_URL, {
+      ruleRevisionId: target as RuleRevisionId,
+      validFrom: on,
+    });
+    expect(approved).not.toBeNull();
+    if (approved === null) {
+      return;
+    }
+
+    // Now a *different* rule changes. Nothing about the approved revision
+    // moved, and the publisher still holds hash H1.
+    await client.query(
+      "update core.rule_revisions set payload = $2::jsonb where rule_revision_id = $1",
+      [other, warningPayload("CAUTION")],
+    );
+
+    const publication = createRulePublicationAdapter(DATABASE_URL);
+    const outcome = await publication.publish({
+      actorUserId: ADMIN as UserId,
+      ruleRevisionId: target as RuleRevisionId,
+      validFrom: on,
+      approvedCandidateBundleHash: approved,
+    });
+
+    expect(outcome.ok).toBe(false);
+    // Not "the caller passed two different hashes": the transaction worked out
+    // for itself that the knowledge base no longer matches the approval.
+    expect(!outcome.ok && outcome.error.kind).toBe("STALE");
+
+    const status = await client.query<{ publication_status: string }>(
+      "select publication_status from core.rule_revisions where rule_revision_id = $1",
+      [target],
+    );
+    expect(status.rows[0]?.publication_status).toBe("APPROVED");
+  });
+
+  it("publishes when nothing moved, so the refusal above is not vacuous", async () => {
+    const target = await insertRule(uniqueSlug("d.rule.clean"), "APPROVED", warningPayload("INFO"));
+    const approved = await computeCandidateBundleHash(DATABASE_URL, {
+      ruleRevisionId: target as RuleRevisionId,
+      validFrom: on,
+    });
+    expect(approved).not.toBeNull();
+    if (approved === null) {
+      return;
+    }
+
+    const outcome = await createRulePublicationAdapter(DATABASE_URL).publish({
+      actorUserId: ADMIN as UserId,
+      ruleRevisionId: target as RuleRevisionId,
+      validFrom: on,
+      approvedCandidateBundleHash: approved,
+    });
+    expect(outcome.ok, JSON.stringify(outcome)).toBe(true);
+
+    const status = await client.query<{ publication_status: string }>(
+      "select publication_status from core.rule_revisions where rule_revision_id = $1",
+      [target],
+    );
+    expect(status.rows[0]?.publication_status).toBe("PUBLISHED");
   });
 });

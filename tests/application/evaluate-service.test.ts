@@ -10,7 +10,7 @@ import { bundleContent, firstCedulaPolicy, pathway, resetRuleCounter, rule, supp
 import { caseTypePayload, procedurePayload } from "../fixtures/payloads";
 import { userCaseFacts } from "../fixtures/facts";
 import { DEFAULT_INSTANT } from "../fixtures/engine";
-import type { EvaluationBundleId, UserCaseId } from "../../src/domain/identifiers/identifiers";
+import type { EvaluationBundleId, UserCaseId, UserId } from "../../src/domain/identifiers/identifiers";
 import { sha256HexConstant } from "../../src/domain/primitives/hash";
 import { evaluationBundleContentHash } from "../../src/rules/bundle/canonical-bundle";
 
@@ -78,10 +78,14 @@ describe("evaluate case service", () => {
     const recorded: RecordEvaluationInput[] = [];
     const { deps } = dependencies(recorded);
     const caseId = "00000000-0000-4000-8000-0000000000c1" as UserCaseId;
-    const result = await evaluateCaseForUser(userCaseFacts(), deps, caseId);
+    const ownerUserId = "00000000-0000-4000-8000-0000000000a1" as UserId;
+    const result = await evaluateCaseForUser(userCaseFacts(), deps, { userCaseId: caseId, ownerUserId });
     expect(result.ok).toBe(true);
     expect(recorded).toHaveLength(1);
     const input = recorded[0] as RecordEvaluationInput;
+    // The owner travels with the write: the internal writer has no identity of
+    // its own, so the server states who the acting user is.
+    expect(input.ownerUserId as string).toBe(ownerUserId as string);
     expect(input.effectiveLocalDate as string).toBe("2026-06-15");
     expect(input.jurisdictionTimeZone).toBe("America/Asuncion");
     expect(input.engineVersion).toBe("1.0.0");

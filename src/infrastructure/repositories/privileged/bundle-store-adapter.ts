@@ -1,6 +1,6 @@
 import "server-only";
-import pg from "pg";
 import { err, ok } from "../../../shared/result/result";
+import { openInternalConnection } from "../../database/connection";
 import type { Sha256Hex } from "../../../domain/primitives/hash";
 import type { SchemaVersion } from "../../../domain/primitives/versioning";
 import type { EvaluationBundleId } from "../../../domain/identifiers/identifiers";
@@ -18,14 +18,15 @@ import type { EvaluationBundleStorePort, PortError } from "../../../application/
 export function createBundleStoreAdapter(connectionString: string): EvaluationBundleStorePort {
   return {
     async materialize(contentHash: Sha256Hex, schemaVersion: SchemaVersion, content: EvaluationBundleContent) {
-      const client = new pg.Client({ connectionString });
+      const sql = openInternalConnection(connectionString);
       try {
-        await client.connect();
-        const result = await client.query<{ id: string }>(
-          "select audit.materialize_evaluation_bundle($1, $2, $3::jsonb) as id",
-          [contentHash as string, schemaVersion as string, JSON.stringify(content)],
-        );
-        const id = result.rows[0]?.id;
+        const rows = await sql<{ id: string }[]>`
+          select audit.materialize_evaluation_bundle(
+            ${contentHash as string},
+            ${schemaVersion as string},
+            ${JSON.stringify(content)}::jsonb
+          ) as id`;
+        const id = rows[0]?.id;
         if (id === undefined) {
           return err<PortError>({
             kind: "PORT_ERROR",
@@ -42,7 +43,7 @@ export function createBundleStoreAdapter(connectionString: string): EvaluationBu
           detail,
         });
       } finally {
-        await client.end().catch(() => undefined);
+        await sql.end().catch(() => undefined);
       }
     },
   };

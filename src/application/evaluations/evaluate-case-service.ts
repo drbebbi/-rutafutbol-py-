@@ -7,7 +7,7 @@ import {
   CURRENT_ENGINE_DESCRIPTOR,
   type EngineDescriptor,
 } from "../../domain/evaluation/engine-descriptor";
-import type { CaseEvaluationId, UserCaseId } from "../../domain/identifiers/identifiers";
+import type { CaseEvaluationId, UserCaseId, UserId } from "../../domain/identifiers/identifiers";
 import { createEvaluationExecutionContext } from "../../case-engine/date-math/execution-context";
 import { evaluateCase } from "../../case-engine/evaluate/evaluate-case";
 import type { EngineError } from "../../case-engine/errors/engine-error";
@@ -34,6 +34,11 @@ export type EvaluationOutcome = Readonly<{
   storedEvaluationId: CaseEvaluationId | null;
 }>;
 
+export type PersistenceTarget = Readonly<{
+  userCaseId: UserCaseId;
+  ownerUserId: UserId;
+}>;
+
 export type EvaluateCaseDependencies = Readonly<{
   clock: ClockPort;
   hash: HashPort;
@@ -54,7 +59,15 @@ export type EvaluateCaseDependencies = Readonly<{
 export async function evaluateCaseForUser(
   facts: UserCaseFacts,
   dependencies: EvaluateCaseDependencies,
-  persistFor: UserCaseId | null,
+  /**
+   * The case to persist against, and the identity the server verified for it.
+   *
+   * `null` means an anonymous evaluation, which is never persisted. When it is
+   * present the owner travels with it, because the writer runs as an internal
+   * role with no user identity of its own - the server states who the acting
+   * user is, and the database checks that claim against the case.
+   */
+  persistFor: PersistenceTarget | null,
 ): Promise<Result<EvaluationOutcome, EvaluationFailure>> {
   const engine = dependencies.engine ?? CURRENT_ENGINE_DESCRIPTOR;
 
@@ -103,7 +116,8 @@ export async function evaluateCaseForUser(
   }
 
   const stored = await dependencies.evaluations.record({
-    userCaseId: persistFor,
+    ownerUserId: persistFor.ownerUserId,
+    userCaseId: persistFor.userCaseId,
     evaluatedAt: context.value.evaluation.evaluatedAt,
     jurisdictionTimeZone: context.value.evaluation.jurisdictionTimeZone as string,
     effectiveLocalDate: context.value.effectiveLocalDate,

@@ -50,12 +50,17 @@ comment on role cedula_admin_runtime_role is
 revoke all on schema app, core, research, audit, security from public;
 
 grant usage on schema app to cedula_runtime_role, cedula_admin_runtime_role, anon, authenticated;
-grant usage on schema core to cedula_runtime_role, cedula_admin_runtime_role, anon, authenticated;
+-- `core` is deliberately absent for the browser roles: `app` is the only Data
+-- API surface, and published knowledge is served through server read paths.
+grant usage on schema core to cedula_runtime_role, cedula_admin_runtime_role;
 grant usage on schema audit to cedula_runtime_role, cedula_admin_runtime_role;
 grant usage on schema research to cedula_admin_runtime_role;
 grant usage on schema security to cedula_admin_runtime_role;
 
--- The Supabase request roles inherit the runtime permission groups; RLS still
--- decides which rows they may actually see.
-grant cedula_runtime_role to authenticated;
-grant cedula_runtime_role to anon;
+-- The browser roles are deliberately NOT members of either internal role.
+--
+-- These are permission groups for server processes, and membership is granted
+-- to environment-specific login principals outside the migrations - never to
+-- `anon` or `authenticated`, whose privileges are attacker-reachable through
+-- any request. No credential of any kind is created here: a migration that
+-- carried one would put it in version control forever.

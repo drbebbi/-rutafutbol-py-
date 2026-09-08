@@ -25,6 +25,7 @@ const NEXT_OR_REACT = [
 const PERSISTENCE = [
   { pattern: /^@supabase\//u, reason: "must not reach Supabase directly" },
   { pattern: /^pg$/u, reason: "must not open a database connection" },
+  { pattern: /^postgres$/u, reason: "must not open a database connection" },
   { pattern: /(^|\/)infrastructure(\/|$)/u, reason: "must not depend on infrastructure" },
 ];
 
@@ -91,6 +92,7 @@ export const BOUNDARY_RULES: readonly BoundaryRule[] = [
       { pattern: /privileged/u, reason: "must never reach privileged infrastructure" },
       { pattern: /^@supabase\/supabase-js$/u, reason: "must use the request-scoped clients" },
       { pattern: /^pg$/u, reason: "must not open a database connection" },
+  { pattern: /^postgres$/u, reason: "must not open a database connection" },
     ],
   },
   {

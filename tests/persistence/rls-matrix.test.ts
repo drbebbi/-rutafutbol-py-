@@ -88,8 +88,17 @@ maybe("row level security matrix", () => {
     ).rejects.toThrow(/permission denied/iu);
   });
 
-  it("lets anonymous users read published knowledge", async () => {
-    const rows = await asRole(client, "anon", null, async () =>
+  it("gives anonymous users no reach into published knowledge either", async () => {
+    // Published knowledge is public information, but not through the Data API:
+    // `app` is the only surface a browser role can reach, and the product
+    // serves knowledge through a server read path instead.
+    await expect(
+      asRole(client, "anon", null, async () => client.query("select country_code from core.countries")),
+    ).rejects.toThrow(/permission denied/iu);
+  });
+
+  it("lets the internal runtime read published knowledge", async () => {
+    const rows = await asRole(client, "cedula_runtime_role", null, async () =>
       (await client.query("select country_code from core.countries")).rows,
     );
     expect(rows.length).toBeGreaterThan(0);
@@ -109,12 +118,29 @@ maybe("row level security matrix", () => {
     ).rejects.toThrow(/permission denied/iu);
   });
 
-  it("writes an evaluation through the authorized server path and then refuses to change it", async () => {
-    const evaluationId = await asRole(client, "authenticated", USER_A, async () => {
+  it("refuses to let the case owner call the evaluation writer at all", async () => {
+    // The owner of the case, with a valid session, asking to store a decision
+    // they authored. This must fail on privilege, before any ownership check:
+    // an evaluation a client could ask for is not evidence the engine produced
+    // one, and no token can make it so.
+    await expect(
+      asRole(client, "authenticated", USER_A, async () =>
+        client.query(
+          `select app.record_case_evaluation($1, $2, now(), 'America/Asuncion', current_date, '1.0.0',
+             'user-case-facts@1.0', $3, '{}'::jsonb, $4, 'case-evaluation-decision@2.0',
+             '{"caseClassification":{"caseType":"STANDARD_FIRST_CEDULA_FROM_NONE","status":"COMPLETE"}}'::jsonb)`,
+          [USER_A, caseA, fakeHash("e1"), bundleId],
+        ),
+      ),
+    ).rejects.toThrow(/permission denied/iu);
+  });
+
+  it("writes an evaluation through the internal runtime path and then refuses to change it", async () => {
+    const evaluationId = await asRole(client, "cedula_runtime_role", null, async () => {
       const result = await client.query<{ record_case_evaluation: string }>(
-        `select app.record_case_evaluation($1, now(), 'America/Asuncion', current_date, '1.0.0',
-           'user-case-facts@1.0', $2, '{}'::jsonb, $3, 'case-evaluation-decision@1.0', '{}'::jsonb)`,
-        [caseA, fakeHash("ee"), bundleId],
+        `select app.record_case_evaluation($1, $2, now(), 'America/Asuncion', current_date, '1.0.0',
+           'user-case-facts@1.0', $3, '{}'::jsonb, $4, 'case-evaluation-decision@2.0', '{}'::jsonb)`,
+        [USER_A, caseA, fakeHash("ee"), bundleId],
       );
       return result.rows[0]?.record_case_evaluation ?? "";
     });
@@ -135,13 +161,16 @@ maybe("row level security matrix", () => {
     ).rejects.toThrow(/append-only/iu);
   });
 
-  it("refuses to record an evaluation for a case the caller does not own", async () => {
+  it("refuses an evaluation whose stated owner is not the case's owner", async () => {
+    // The internal runtime may call the writer, but it cannot assert whatever
+    // it likes: the database checks the owner the server passed in against the
+    // case, so a mixed-up identity is rejected rather than trusted.
     await expect(
-      asRole(client, "authenticated", USER_B, async () =>
+      asRole(client, "cedula_runtime_role", null, async () =>
         client.query(
-          `select app.record_case_evaluation($1, now(), 'America/Asuncion', current_date, '1.0.0',
-             'user-case-facts@1.0', $2, '{}'::jsonb, $3, 'case-evaluation-decision@1.0', '{}'::jsonb)`,
-          [caseA, fakeHash("ff"), bundleId],
+          `select app.record_case_evaluation($1, $2, now(), 'America/Asuncion', current_date, '1.0.0',
+             'user-case-facts@1.0', $3, '{}'::jsonb, $4, 'case-evaluation-decision@2.0', '{}'::jsonb)`,
+          [USER_B, caseA, fakeHash("ff"), bundleId],
         ),
       ),
     ).rejects.toThrow(/not authorized/iu);
@@ -155,11 +184,11 @@ maybe("row level security matrix", () => {
       )
     ).rows[0]?.id as string;
 
-    await asRole(client, "authenticated", USER_A, async () =>
+    await asRole(client, "cedula_runtime_role", null, async () =>
       client.query(
-        `select app.record_case_evaluation($1, now(), 'America/Asuncion', current_date, '1.0.0',
-           'user-case-facts@1.0', $2, '{"personal":"data"}'::jsonb, $3, 'case-evaluation-decision@1.0', '{}'::jsonb)`,
-        [caseId, fakeHash("ab"), bundleId],
+        `select app.record_case_evaluation($1, $2, now(), 'America/Asuncion', current_date, '1.0.0',
+           'user-case-facts@1.0', $3, '{"personal":"data"}'::jsonb, $4, 'case-evaluation-decision@2.0', '{}'::jsonb)`,
+        [USER_A, caseId, fakeHash("ab"), bundleId],
       ),
     );
 

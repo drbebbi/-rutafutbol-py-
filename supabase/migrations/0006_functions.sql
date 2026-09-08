@@ -62,7 +62,16 @@ grant execute on function audit.materialize_evaluation_bundle(core.sha256_hex, c
 -- ---------------------------------------------------------------------------
 -- Users may read their evaluations but never insert one: a decision the user
 -- could author is not evidence of anything.
+-- The authoritative evaluation writer.
+--
+-- Callable only by the internal runtime roles. The browser roles hold no
+-- EXECUTE privilege on it at all, so a client cannot fabricate a decision and
+-- have it stored as if the engine produced it - not even one about its own
+-- case. The owner is passed in by the server from a verified identity and is
+-- checked against the case here, so a wrong value is rejected rather than
+-- believed.
 create function app.record_case_evaluation(
+  p_owner_user_id uuid,
   p_user_case_id uuid,
   p_evaluated_at timestamptz,
   p_jurisdiction_time_zone text,
@@ -91,9 +100,7 @@ begin
     raise exception 'user case not found';
   end if;
 
-  -- The caller must be the owner. This holds for the request-scoped runtime
-  -- role; a privileged backend path sets the JWT claims of the acting user.
-  if auth.uid() is null or v_owner <> auth.uid() then
+  if p_owner_user_id is null or v_owner <> p_owner_user_id then
     raise exception 'not authorized to record an evaluation for this case';
   end if;
 
@@ -112,8 +119,8 @@ begin
 end;
 $$;
 
-revoke all on function app.record_case_evaluation(uuid, timestamptz, text, date, text, core.schema_version, core.sha256_hex, jsonb, uuid, core.schema_version, jsonb) from public;
-grant execute on function app.record_case_evaluation(uuid, timestamptz, text, date, text, core.schema_version, core.sha256_hex, jsonb, uuid, core.schema_version, jsonb)
+revoke all on function app.record_case_evaluation(uuid, uuid, timestamptz, text, date, text, core.schema_version, core.sha256_hex, jsonb, uuid, core.schema_version, jsonb) from public;
+grant execute on function app.record_case_evaluation(uuid, uuid, timestamptz, text, date, text, core.schema_version, core.sha256_hex, jsonb, uuid, core.schema_version, jsonb)
   to cedula_runtime_role, cedula_admin_runtime_role;
 
 -- ---------------------------------------------------------------------------

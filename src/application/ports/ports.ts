@@ -1,4 +1,5 @@
 import type { Result } from "../../shared/result/result";
+import type { AdminRole } from "../../auth/roles/admin-role";
 import type { InstantString } from "../../domain/primitives/instant";
 import type { LocalDate } from "../../domain/primitives/local-date";
 import type { Sha256Hex } from "../../domain/primitives/hash";
@@ -79,6 +80,15 @@ export type UserCaseRepositoryPort = Readonly<{
 }>;
 
 export type RecordEvaluationInput = Readonly<{
+  /**
+   * The owner, as established by the server from a verified identity.
+   *
+   * Passed explicitly rather than read from the database session, because the
+   * writer runs as an internal role that has no user identity of its own. The
+   * database still refuses the write unless this matches the case's owner, so
+   * a wrong value here is rejected rather than trusted.
+   */
+  ownerUserId: UserId;
   userCaseId: UserCaseId;
   evaluatedAt: InstantString;
   jurisdictionTimeZone: string;
@@ -97,4 +107,19 @@ export type CaseEvaluationRepositoryPort = Readonly<{
   listForCase: (
     userCaseId: UserCaseId,
   ) => Promise<Result<readonly Readonly<{ id: CaseEvaluationId; decision: CaseEvaluationDecision }>[], PortError>>;
+}>;
+
+/**
+ * Reads administrative authority.
+ *
+ * Separate from every other read path, and deliberately narrow: it answers
+ * "which admin roles does this user hold right now" and nothing else. It is
+ * never a request-scoped Data API client, because a request-scoped client
+ * carries the requester's own privileges - and asking a user's own session
+ * whether that user is an administrator is asking the wrong party.
+ *
+ * A failure is a failure, not an empty list. The caller must fail closed.
+ */
+export type AdminAuthorizationRepositoryPort = Readonly<{
+  findActiveRolesForUser: (userId: UserId) => Promise<Result<readonly AdminRole[], PortError>>;
 }>;

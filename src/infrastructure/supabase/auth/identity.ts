@@ -1,8 +1,8 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { UserId } from "../../../domain/identifiers/identifiers";
-import type { AdminRole } from "../../../auth/roles/admin-role";
 import type { AuthenticatedIdentity, SessionLiveness } from "../../../auth/authorization/authorization";
+import type { AdminAuthorizationRepositoryPort } from "../../../application/ports/ports";
 
 /**
  * Resolves the authoritative server identity.
@@ -13,6 +13,7 @@ import type { AuthenticatedIdentity, SessionLiveness } from "../../../auth/autho
  */
 export async function resolveAuthenticatedIdentity(
   client: SupabaseClient,
+  adminAuthorizations: AdminAuthorizationRepositoryPort,
 ): Promise<AuthenticatedIdentity | null> {
   const claimsResult = await client.auth.getClaims();
   const claims = claimsResult.data?.claims as
@@ -34,35 +35,30 @@ export async function resolveAuthenticatedIdentity(
     expiresAt = 0;
   }
 
-  const adminRoles = await readAdminRoles(client, userId);
+  /*
+   * Authority is looked up fresh, on the internal path, every time.
+   *
+   * Not from the token: a JWT minted before a revocation would still carry the
+   * role. Not through the request-scoped client either: that client holds the
+   * requester's own privileges, and the browser roles cannot reach `security`
+   * at all - by design.
+   *
+   * A lookup that fails yields no identity rather than an identity with no
+   * roles. The difference matters: the second reads as "signed in, not an
+   * administrator", which would let a read-only page render as if the check
+   * had succeeded.
+   */
+  const roles = await adminAuthorizations.findActiveRolesForUser(userId as UserId);
+  if (!roles.ok) {
+    return null;
+  }
 
   return {
     userId: userId as UserId,
     assuranceLevel,
-    adminRoles,
+    adminRoles: roles.value,
     expiresAt,
   };
-}
-
-/**
- * Administrative authority comes from `security.admin_authorizations`.
- * `user_metadata.admin` is user-writable and is never consulted.
- */
-async function readAdminRoles(client: SupabaseClient, userId: string): Promise<readonly AdminRole[]> {
-  const result = await client
-    .schema("security")
-    .from("admin_authorizations")
-    .select("admin_role")
-    .eq("user_id", userId)
-    .is("revoked_at", null);
-
-  if (result.error !== null || result.data === null) {
-    // A failure to read authority is never read as "has authority".
-    return [];
-  }
-  return result.data
-    .map((row) => (row as { admin_role: string }).admin_role as AdminRole)
-    .filter((role): role is AdminRole => role === "RESEARCHER" || role === "PUBLISHER" || role === "ADMIN");
 }
 
 /**

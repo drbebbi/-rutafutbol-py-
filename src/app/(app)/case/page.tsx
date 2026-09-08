@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "../../../infrastructure/supabase/server";
 import { resolveAuthenticatedIdentity } from "../../../infrastructure/supabase/auth/identity";
+import { adminAuthorizationsFromEnvironment } from "../../../infrastructure/supabase/auth/authorization-source";
 
 /**
  * The authenticated seam.
@@ -16,7 +17,7 @@ export default async function CasePage() {
   let identity = null;
   try {
     const client = await createSupabaseServerClient();
-    identity = await resolveAuthenticatedIdentity(client);
+    identity = await resolveAuthenticatedIdentity(client, adminAuthorizationsFromEnvironment());
   } catch {
     // Supabase is not configured in this environment; the page still has to
     // render its signed-out state rather than crash.

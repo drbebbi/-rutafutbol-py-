@@ -41,8 +41,13 @@ create policy case_evaluations_select_own on app.case_evaluations
   using (owner_user_id = auth.uid());
 
 -- ---------------------------------------------------------------------------
--- core: published knowledge is public reference data
+-- core: published knowledge, served through server read paths only
 -- ---------------------------------------------------------------------------
+-- Published knowledge is public information, but `app` is the only Data API
+-- surface: a browser role has no privilege here and no policy either. The
+-- product serves this content through controlled server read paths, which run
+-- as the internal runtime role and can therefore assemble a whole bundle in
+-- one transaction - something the Data API could not express anyway.
 do $$
 declare
   t record;
@@ -53,8 +58,8 @@ begin
     execute format('alter table core.%I enable row level security', t.tablename);
     execute format('alter table core.%I force row level security', t.tablename);
     execute format(
-      'create policy %I on core.%I for select to anon, authenticated using (true)',
-      t.tablename || '_public_read', t.tablename
+      'create policy %I on core.%I for select to cedula_runtime_role, cedula_admin_runtime_role using (true)',
+      t.tablename || '_runtime_read', t.tablename
     );
     -- Writes are reserved for the admin runtime and the publication path.
     execute format(
@@ -148,12 +153,17 @@ alter default privileges in schema core grant select, insert, update, delete on 
 -- platform detail (`anon` and `authenticated` are NOINHERIT) and security must
 -- not depend on it. Row level security still decides which rows are visible.
 
-grant select on all tables in schema core to anon, authenticated;
-alter default privileges in schema core grant select on tables to anon, authenticated;
+-- No grant on `core` for the browser roles: `app` is the only Data API
+-- surface, and published knowledge reaches the browser through a server read
+-- path rather than through PostgREST.
 
 grant select, insert, update, delete on app.user_cases to authenticated;
 -- Read only, deliberately: an evaluation a client could author is not evidence.
 grant select on app.case_evaluations to authenticated;
 
-grant execute on function app.record_case_evaluation(uuid, timestamptz, text, date, text, core.schema_version, core.sha256_hex, jsonb, uuid, core.schema_version, jsonb) to authenticated;
+-- Deliberately NOT granted to `authenticated`: app.record_case_evaluation.
+-- An evaluation a client could call for is not evidence that the engine
+-- produced it. The write runs server-side as the internal runtime role, which
+-- passes in the owner it verified; the database checks that owner against the
+-- case, so the trust chain ends in the server, never in the browser.
 grant execute on function app.erase_user_case(uuid) to authenticated;

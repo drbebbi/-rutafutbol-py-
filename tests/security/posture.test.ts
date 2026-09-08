@@ -71,8 +71,35 @@ describe("authentication identity", () => {
     for (const file of sourceFiles) {
       expect(file.source, file.path).not.toMatch(/user_metadata\s*[.[]\s*['"]?admin/u);
     }
+    // Authority comes from `security.admin_authorizations`, and only from the
+    // internal reader: the request-scoped client never touches that table.
+    const reader = sourceFiles.find((file) =>
+      file.path.endsWith("internal/admin-authorization-adapter.ts"),
+    );
+    expect(reader?.source).toContain("security.admin_authorizations");
+
     const identity = sourceFiles.find((file) => file.path.endsWith("supabase/auth/identity.ts"));
-    expect(identity?.source).toContain("admin_authorizations");
+    expect(identity?.source).toContain("findActiveRolesForUser");
+    expect(identity?.source).not.toContain("admin_authorizations");
+  });
+
+  it("reads administrative authority on the internal path, never through the user's client", () => {
+    for (const file of sourceFiles) {
+      if (file.path.endsWith("internal/admin-authorization-adapter.ts")) {
+        continue;
+      }
+      // A request-scoped Data API client carries the requester's own
+      // privileges; asking it whether the requester is an administrator asks
+      // the wrong party, and the browser roles cannot reach `security` anyway.
+      expect(file.source, file.path).not.toMatch(/schema\(\s*["']security["']\s*\)/u);
+    }
+  });
+
+  it("fails closed when administrative authority cannot be read", () => {
+    const identity = sourceFiles.find((file) => file.path.endsWith("supabase/auth/identity.ts"));
+    // No identity at all, rather than an identity with no roles: the second
+    // would read as "signed in, not an administrator".
+    expect(identity?.source).toMatch(/if \(!roles\.ok\) \{\s*return null;/u);
   });
 });
 

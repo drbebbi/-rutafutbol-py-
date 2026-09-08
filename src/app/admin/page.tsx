@@ -3,6 +3,7 @@ import {
   checkSessionLiveness,
   resolveAuthenticatedIdentity,
 } from "../../infrastructure/supabase/auth/identity";
+import { adminAuthorizationsFromEnvironment } from "../../infrastructure/supabase/auth/authorization-source";
 import { authorizePrivilegedAction } from "../../auth/authorization/authorization";
 
 /**
@@ -22,7 +23,10 @@ type AdminAccess = Readonly<{ granted: boolean; reason: string }>;
 async function resolveAdminAccess(): Promise<AdminAccess> {
   try {
     const client = await createSupabaseServerClient();
-    const identity = await resolveAuthenticatedIdentity(client);
+    const identity = await resolveAuthenticatedIdentity(
+      client,
+      adminAuthorizationsFromEnvironment(),
+    );
     const liveness = identity === null ? null : await checkSessionLiveness(client);
     const authorized = authorizePrivilegedAction(identity, "READ_ADMIN_AUDIT", liveness, Date.now());
     return authorized.ok

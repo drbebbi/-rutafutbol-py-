@@ -1,7 +1,7 @@
 -- Roles, grants, RLS enablement and SECURITY DEFINER hardening.
 begin;
 create extension if not exists pgtap;
-select plan(32);
+select plan(43);
 
 -- Roles exist and hold no dangerous attribute.
 select has_role('cedula_runtime_role', 'the normal runtime role exists');
@@ -60,10 +60,96 @@ select is(
   'anonymous users have no policy on any per-user table'
 );
 
+-- `app` is the only Data API surface: the browser roles have no policy and no
+-- privilege anywhere else, and published knowledge reaches a visitor through a
+-- server read path instead.
+select is(
+  (select count(*)::int from pg_policies
+   where schemaname in ('core', 'research', 'audit', 'security')
+     and (roles && array['anon', 'authenticated']::name[])),
+  0,
+  'no browser role has a policy outside the app schema'
+);
+
+select is(
+  (select count(*)::int
+   from pg_class c
+   join pg_namespace n on n.oid = c.relnamespace
+   cross join lateral (values ('anon'), ('authenticated')) as r(rolname)
+   where n.nspname in ('core', 'research', 'audit', 'security')
+     and c.relkind = 'r'
+     and (has_table_privilege(r.rolname, c.oid, 'SELECT')
+       or has_table_privilege(r.rolname, c.oid, 'INSERT')
+       or has_table_privilege(r.rolname, c.oid, 'UPDATE')
+       or has_table_privilege(r.rolname, c.oid, 'DELETE'))),
+  0,
+  'no browser role holds any privilege on core, research, audit or security'
+);
+
 select ok(
-  (select count(*) from pg_policies
-   where schemaname = 'core' and 'anon' = any(roles) and cmd = 'SELECT') > 0,
-  'published knowledge is readable anonymously'
+  not has_schema_privilege('anon', 'core', 'USAGE')
+    and not has_schema_privilege('authenticated', 'core', 'USAGE'),
+  'the browser roles cannot even reach the core schema'
+);
+
+-- Role membership: the permission groups are for server processes only.
+select ok(
+  not pg_has_role('anon', 'cedula_runtime_role', 'MEMBER')
+    and not pg_has_role('authenticated', 'cedula_runtime_role', 'MEMBER'),
+  'no browser role is a member of the normal runtime role'
+);
+select ok(
+  not pg_has_role('anon', 'cedula_admin_runtime_role', 'MEMBER')
+    and not pg_has_role('authenticated', 'cedula_admin_runtime_role', 'MEMBER'),
+  'no browser role is a member of the admin runtime role'
+);
+-- MEMBER is not enough on its own: SET tells us whether the role could assume
+-- the privileges with a plain SET ROLE, which is what actually matters.
+select ok(
+  not pg_has_role('anon', 'cedula_runtime_role', 'SET')
+    and not pg_has_role('authenticated', 'cedula_runtime_role', 'SET')
+    and not pg_has_role('anon', 'cedula_admin_runtime_role', 'SET')
+    and not pg_has_role('authenticated', 'cedula_admin_runtime_role', 'SET'),
+  'no browser role can SET ROLE to an internal runtime role'
+);
+select ok(
+  not exists (select 1 from pg_roles where rolname = 'authenticator')
+    or (not pg_has_role('authenticator', 'cedula_runtime_role', 'SET')
+      and not pg_has_role('authenticator', 'cedula_admin_runtime_role', 'SET')),
+  'the connection role behind the Data API cannot SET ROLE to an internal runtime role'
+);
+
+-- The authoritative evaluation writer is not reachable from a browser session.
+select ok(
+  not has_function_privilege('authenticated',
+    'app.record_case_evaluation(uuid, uuid, timestamptz, text, date, text, core.schema_version, core.sha256_hex, jsonb, uuid, core.schema_version, jsonb)',
+    'EXECUTE'),
+  'authenticated users cannot call the evaluation writer'
+);
+select ok(
+  not has_function_privilege('anon',
+    'app.record_case_evaluation(uuid, uuid, timestamptz, text, date, text, core.schema_version, core.sha256_hex, jsonb, uuid, core.schema_version, jsonb)',
+    'EXECUTE'),
+  'anonymous users cannot call the evaluation writer'
+);
+select ok(
+  has_function_privilege('cedula_runtime_role',
+    'app.record_case_evaluation(uuid, uuid, timestamptz, text, date, text, core.schema_version, core.sha256_hex, jsonb, uuid, core.schema_version, jsonb)',
+    'EXECUTE'),
+  'the internal runtime may call the evaluation writer'
+);
+select ok(
+  not has_table_privilege('authenticated', 'app.case_evaluations', 'INSERT')
+    and not has_table_privilege('authenticated', 'app.case_evaluations', 'UPDATE')
+    and not has_table_privilege('authenticated', 'app.case_evaluations', 'DELETE'),
+  'authenticated users cannot write an evaluation row directly either'
+);
+
+-- Administrative authority is readable only by the paths meant to read it.
+select ok(
+  not has_table_privilege('authenticated', 'security.admin_authorizations', 'SELECT')
+    and not has_schema_privilege('authenticated', 'security', 'USAGE'),
+  'a request-scoped session cannot read administrative authority'
 );
 
 -- Grants: the normal runtime cannot write evaluations directly.

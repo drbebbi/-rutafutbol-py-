@@ -1,0 +1,102 @@
+name: Cédula PY
+
+on:
+  push:
+    branches: ["main", "claude/**"]
+    paths: ["cedula-py/**", ".github/workflows/cedula-py.yml"]
+  pull_request:
+    paths: ["cedula-py/**", ".github/workflows/cedula-py.yml"]
+
+defaults:
+  run:
+    working-directory: cedula-py
+
+jobs:
+  pure:
+    name: Types, lint, gates and pure tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          # Node 24 LTS is the binding runtime baseline.
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: cedula-py/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run check:boundaries
+      - run: npm run validate:rules
+      - run: npm run validate:sources
+      - run: npm run verify:bundle
+      - run: npm run test:unit
+      - run: npm run test:rules
+      - run: npm run test:engine
+      - run: npm run test:golden
+      - run: npm run test:property
+      - run: npm run test:application
+      - run: npm run test:architecture
+      - run: npm run test:security
+      - run: npm run test:coverage
+      - run: npm run build
+
+  database:
+    name: Migrations, pgTAP and persistence
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: cedula_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 10s
+          --health-timeout 5s --health-retries 5
+    env:
+      CEDULA_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/cedula_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: cedula-py/package-lock.json
+      - name: Install psql and pgTAP
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client postgresql-17-pgtap
+      - run: npm ci
+      - name: Rebuild the schema from the migrations
+        run: npm run db:reset
+      - run: npm run test:db
+      - run: npm run test:persistence
+      - run: npm run test:integration
+
+  e2e:
+    name: End-to-end
+    runs-on: ubuntu-latest
+    env:
+      CI: "true"
+      CEDULA_ENVIRONMENT: LOCAL
+      CEDULA_SYNTHETIC_KNOWLEDGE: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: cedula-py/package-lock.json
+      - run: npm ci
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium webkit
+      - run: npm run build
+      # Release matrix: mobile Chromium, mobile WebKit, desktop Chromium.
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: cedula-py/playwright-report
+          retention-days: 7

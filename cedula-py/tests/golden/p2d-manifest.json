@@ -1,0 +1,360 @@
+{
+  "note": "Permanent registry of the Phase 2D golden case identities. A case may only move to MATERIALIZED when its original Phase-2D input is supplied; the engine must never have its expectations invented.",
+  "cases": [
+    {
+      "id": "P2D-001",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-002",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-003",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-004",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-005",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-006",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-007",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-008",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-009",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-010",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-011",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-012",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-013",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-014",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-015",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-016",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-017",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-018",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-019",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-020",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-021",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-022",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-023",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-024",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-025",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-026",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-027",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-028",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-029",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-030",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-031",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-032",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-033",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-034",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-035",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-036",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-037",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-038",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-039",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-040",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-041",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-042",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-043",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-044",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-045",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-046",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-047",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-048",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-049",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-050",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-051",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-052",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-053",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-054",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-055",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-056",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-057",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-058",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-059",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-060",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-061",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-062",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-063",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-064",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-065",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-066",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-067",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-068",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-069",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-070",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    },
+    {
+      "id": "P2D-071",
+      "status": "SPECIFICATION_INPUT_REQUIRED",
+      "reason": "The original Phase-2D case input (facts + expected decision) was not present in the implementation working context. The fixture is deliberately not invented."
+    }
+  ]
+}

@@ -1,14 +1,19 @@
 import { err, ok, type Result } from "../../shared/result/result";
 import type { EvaluationExecutionContext } from "../../domain/evaluation/context";
 import type { ProvenanceRef } from "../../domain/evaluation/provenance";
-import { isSupportLevel, unresolvedReasonFor, type SupportLevel, type UnresolvedReason } from "../../domain/rules/verification";
+import { isSupportLevel, type SupportLevel, type UnresolvedReason } from "../../domain/rules/verification";
 import type { TruthValue } from "../../rules/definitions/ast";
 import type { RuleFactPath } from "../../rules/definitions/fact-paths";
 import type { RuleRevision } from "../../rules/definitions/rule-revision";
-import type { RuleFamily } from "../../rules/definitions/payloads";
+import type { RuleFamily, UnresolvedRuleVerification } from "../../rules/definitions/payloads";
 import { evaluateCondition } from "../conditions/evaluate-condition";
 import type { RuleFactView, ScopeBinding, ScopeCollection } from "../classify/fact-view";
 import { ruleConfigurationError, type EngineError } from "../errors/engine-error";
+
+export type UnresolvedStatement = Readonly<{
+  reason: UnresolvedReason;
+  verification: UnresolvedRuleVerification;
+}>;
 
 /**
  * One evaluation of one rule against one scope binding.
@@ -22,14 +27,24 @@ export type RuleInstance = Readonly<{
   revision: RuleRevision;
   binding: ScopeBinding | null;
   truth: TruthValue;
-  /** RESOLVED means the rule may state a consequence; UNRESOLVED may not. */
-  resolution: "RESOLVED_CONSEQUENCE" | "UNRESOLVED_VERIFICATION";
+  /**
+   * Exactly one of these two is set, mirroring the payload's resolution.
+   *
+   * `support` present means the rule states a consequence and how well the
+   * evidence backs it. `unresolved` present means the rule states no
+   * consequence at all, only what a human has to verify.
+   */
   support: SupportLevel | null;
-  unresolvedReason: UnresolvedReason | null;
+  unresolved: UnresolvedStatement | null;
   indeterminateFactPaths: readonly RuleFactPath[];
   unguardedNotApplicablePaths: readonly RuleFactPath[];
   provenance: ProvenanceRef;
 }>;
+
+/** True when this instance states a consequence rather than a verification. */
+export function statesConsequence(instance: RuleInstance): boolean {
+  return instance.unresolved === null;
+}
 
 function provenanceOf(revision: RuleRevision): ProvenanceRef {
   return {
@@ -83,9 +98,38 @@ export function evaluateRuleInstances(
   view: RuleFactView,
   context: EvaluationExecutionContext,
 ): Result<readonly RuleInstance[], EngineError> {
-  const support = isSupportLevel(revision.verificationStatus) ? revision.verificationStatus : null;
-  const unresolvedReason = unresolvedReasonFor(revision.verificationStatus);
-  const resolution = support === null ? "UNRESOLVED_VERIFICATION" : "RESOLVED_CONSEQUENCE";
+  /*
+   * The payload's resolution decides whether a consequence exists; the
+   * revision's verification status only says how well the evidence backs it.
+   * A revision whose two halves disagree is a configuration defect and stops
+   * the evaluation rather than silently picking one of them.
+   */
+  const resolution = revision.payload.resolution;
+  let support: SupportLevel | null = null;
+  let unresolved: UnresolvedStatement | null = null;
+  if (resolution.state === "RESOLVED") {
+    if (!isSupportLevel(revision.verificationStatus)) {
+      return err(
+        ruleConfigurationError(
+          "RESOLUTION_STATUS_MISMATCH",
+          `rule "${revision.ruleId}" states a consequence but its evidence is ${revision.verificationStatus}`,
+          revision.ruleId,
+        ),
+      );
+    }
+    support = revision.verificationStatus;
+  } else {
+    if (revision.verificationStatus !== resolution.reason) {
+      return err(
+        ruleConfigurationError(
+          "RESOLUTION_STATUS_MISMATCH",
+          `rule "${revision.ruleId}" is unresolved for ${resolution.reason} but its evidence is ${revision.verificationStatus}`,
+          revision.ruleId,
+        ),
+      );
+    }
+    unresolved = { reason: resolution.reason, verification: resolution.verification };
+  }
   const provenance = provenanceOf(revision);
 
   const collection = collectionFor(view, revision.payload.family, revision);
@@ -104,9 +148,8 @@ export function evaluateRuleInstances(
         revision,
         binding: null,
         truth: "INDETERMINATE",
-        resolution,
         support,
-        unresolvedReason,
+        unresolved,
         indeterminateFactPaths: [collectionPathFor(revision)],
         unguardedNotApplicablePaths: [],
         provenance,
@@ -130,9 +173,8 @@ export function evaluateRuleInstances(
       revision,
       binding,
       truth: outcome.value.value,
-      resolution,
       support,
-      unresolvedReason,
+      unresolved,
       indeterminateFactPaths: outcome.value.indeterminateFactPaths,
       unguardedNotApplicablePaths: outcome.value.unguardedNotApplicablePaths,
       provenance,

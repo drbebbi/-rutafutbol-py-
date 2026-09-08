@@ -52,7 +52,7 @@ export function createKnowledgeReadAdapter(connectionString: string): KnowledgeR
                   r.publication_status, r.verification_status,
                   to_char(r.valid_from,'YYYY-MM-DD') as valid_from,
                   to_char(r.valid_until,'YYYY-MM-DD') as valid_until,
-                  r.payload_schema_version, r.payload, r.precedence, r.verification,
+                  r.payload_schema_version, r.payload,
                   coalesce(
                     (select jsonb_agg(jsonb_build_object(
                         'sourceRevisionId', e.source_revision_id,
@@ -140,9 +140,7 @@ export function createKnowledgeReadAdapter(connectionString: string): KnowledgeR
             validUntil: row["valid_until"],
             payloadSchemaVersion: row["payload_schema_version"],
             payload: row["payload"],
-            precedence: row["precedence"],
             evidence: row["evidence"],
-            verification: row["verification"],
           })),
           evidence: evidence.rows.map((row) => ({
             sourceRevisionId: row["source_revision_id"],

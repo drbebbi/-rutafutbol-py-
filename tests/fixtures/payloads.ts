@@ -4,14 +4,20 @@ import type {
   DocumentFormalityPayload,
   DocumentRequirementPayload,
   DocumentReuseRulePayload,
+  FeeFormulaTemplate,
   FeeRulePayload,
   ProcedureParameterTemplate,
   ProcedureRulePayload,
   ProcedureTargetSelector,
+  DocumentTargetSelector,
   RequirementValue,
+  RulePayload,
+  UnresolvedRuleVerification,
   VisaRulePayload,
+  WarningConsequence,
   WarningRulePayload,
 } from "../../src/rules/definitions/payloads";
+import type { UnresolvedReason } from "../../src/domain/rules/verification";
 import type { RuleConditionNode } from "../../src/rules/definitions/ast";
 import type { CaseType } from "../../src/domain/case/classification";
 import { alwaysTrue } from "./rules";
@@ -24,6 +30,35 @@ export function procedureSelector(
   discriminator: string | null = null,
 ): ProcedureTargetSelector {
   return { procedureId: id(procedureId), parameters, discriminator };
+}
+
+export function documentSelector(
+  procedureId: string,
+  documentTypeId: string,
+): DocumentTargetSelector {
+  return {
+    forProcedure: procedureSelector(procedureId),
+    documentTypeId: id(documentTypeId),
+    issuingCountry: null,
+    discriminator: null,
+  };
+}
+
+/**
+ * Turns a resolved payload into an unresolved one.
+ *
+ * The consequence is dropped, not kept alongside: the point of the model is
+ * that an unresolved rule has nowhere to put one.
+ */
+export function unresolved<P extends RulePayload>(
+  payload: P,
+  reason: UnresolvedReason,
+  verification: UnresolvedRuleVerification,
+): P {
+  const rest = Object.fromEntries(
+    Object.entries(payload).filter(([key]) => key !== "resolution"),
+  );
+  return { ...rest, resolution: { state: "UNRESOLVED", reason, verification } } as unknown as P;
 }
 
 export function literalParam(name: string, value: string): ProcedureParameterTemplate {
@@ -45,7 +80,11 @@ export function procedurePayload(
     family: "PROCEDURE",
     scope: "CASE",
     condition,
-    consequence: { procedureId: id(procedureId), parameters, discriminator, requirement },
+    precedence: [],
+    resolution: {
+      state: "RESOLVED",
+      consequence: { procedureId: id(procedureId), parameters, discriminator, requirement },
+    },
   };
 }
 
@@ -60,12 +99,17 @@ export function documentPayload(
     family: "DOCUMENT_REQUIREMENT",
     scope: "CASE",
     condition,
-    consequence: {
-      forProcedure: procedureSelector(procedureId),
-      documentTypeId: id(documentTypeId),
-      issuingCountry: issuingCountry === null ? null : { kind: "LITERAL", countryCode: id(issuingCountry) },
-      discriminator: null,
-      requirement,
+    precedence: [],
+    resolution: {
+      state: "RESOLVED",
+      consequence: {
+        forProcedure: procedureSelector(procedureId),
+        documentTypeId: id(documentTypeId),
+        issuingCountry:
+          issuingCountry === null ? null : { kind: "LITERAL", countryCode: id(issuingCountry) },
+        discriminator: null,
+        requirement,
+      },
     },
   };
 }
@@ -81,15 +125,14 @@ export function formalityPayload(
     family: "DOCUMENT_FORMALITY",
     scope: "CASE",
     condition,
-    consequence: {
-      forDocument: {
-        forProcedure: procedureSelector(procedureId),
-        documentTypeId: id(documentTypeId),
-        issuingCountry: null,
-        discriminator: null,
+    precedence: [],
+    resolution: {
+      state: "RESOLVED",
+      consequence: {
+        forDocument: documentSelector(procedureId, documentTypeId),
+        formalityCode: id(formalityCode),
+        requirement,
       },
-      formalityCode: id(formalityCode),
-      requirement,
     },
   };
 }
@@ -97,21 +140,17 @@ export function formalityPayload(
 export function reusePayload(
   procedureId: string,
   documentTypeId: string,
-  resolution: DocumentReuseRulePayload["consequence"]["resolution"],
+  resolution: "REUSABLE_CONFIRMED" | "REUSE_NOT_ALLOWED" | "REISSUE_REQUIRED",
   condition: RuleConditionNode = alwaysTrue,
 ): DocumentReuseRulePayload {
   return {
     family: "DOCUMENT_REUSE",
     scope: "CASE",
     condition,
-    consequence: {
-      forDocument: {
-        forProcedure: procedureSelector(procedureId),
-        documentTypeId: id(documentTypeId),
-        issuingCountry: null,
-        discriminator: null,
-      },
-      resolution,
+    precedence: [],
+    resolution: {
+      state: "RESOLVED",
+      consequence: { forDocument: documentSelector(procedureId, documentTypeId), resolution },
     },
   };
 }
@@ -119,21 +158,29 @@ export function reusePayload(
 export function dependencyPayload(
   dependent: string,
   dependsOn: string,
-  relation: DependencyRulePayload["consequence"]["relation"] = "REQUIRED_BEFORE",
+  relation: "REQUIRED_BEFORE" | "NOT_REQUIRED_BEFORE" = "REQUIRED_BEFORE",
   condition: RuleConditionNode = alwaysTrue,
 ): DependencyRulePayload {
   return {
     family: "DEPENDENCY",
     scope: "CASE",
     condition,
-    consequence: { dependent: procedureSelector(dependent), dependsOn: procedureSelector(dependsOn), relation },
+    precedence: [],
+    resolution: {
+      state: "RESOLVED",
+      consequence: {
+        dependent: procedureSelector(dependent),
+        dependsOn: procedureSelector(dependsOn),
+        relation,
+      },
+    },
   };
 }
 
 export function feePayload(
   procedureId: string,
   componentCode: string,
-  formula: FeeRulePayload["consequence"]["formula"],
+  formula: FeeFormulaTemplate,
   condition: RuleConditionNode = alwaysTrue,
 ): FeeRulePayload {
   const feeType =
@@ -142,7 +189,16 @@ export function feePayload(
     family: "FEE",
     scope: "CASE",
     condition,
-    consequence: { forProcedure: procedureSelector(procedureId), componentCode: id(componentCode), feeType, formula },
+    precedence: [],
+    resolution: {
+      state: "RESOLVED",
+      consequence: {
+        forProcedure: procedureSelector(procedureId),
+        componentCode: id(componentCode),
+        feeType,
+        formula,
+      },
+    },
   };
 }
 
@@ -154,7 +210,9 @@ export function caseTypePayload(
     family: "CLASSIFICATION",
     scope: "CASE",
     condition,
-    consequence: { kind: "CASE_TYPE", caseType },
+    subject: "CASE_TYPE",
+    precedence: [],
+    resolution: { state: "RESOLVED", consequence: { kind: "CASE_TYPE", caseType } },
   };
 }
 
@@ -166,7 +224,12 @@ export function residencePayload(
     family: "CLASSIFICATION",
     scope: "CASE",
     condition,
-    consequence: { kind: "RESIDENCE_CLASSIFICATION", classification },
+    subject: "RESIDENCE_CLASSIFICATION",
+    precedence: [],
+    resolution: {
+      state: "RESOLVED",
+      consequence: { kind: "RESIDENCE_CLASSIFICATION", classification },
+    },
   };
 }
 
@@ -179,13 +242,17 @@ export function visaPayload(
     family: "VISA",
     scope: "CASE",
     condition,
-    consequence: { purposeCode: id(purposeCode), requirement },
+    precedence: [],
+    resolution: {
+      state: "RESOLVED",
+      consequence: { purposeCode: id(purposeCode), requirement },
+    },
   };
 }
 
 export function warningPayload(
-  code: WarningRulePayload["consequence"]["code"],
-  severity: WarningRulePayload["consequence"]["severity"] = "INFO",
+  code: WarningConsequence["code"],
+  severity: WarningConsequence["severity"] = "INFO",
   qualifier: string | null = null,
   condition: RuleConditionNode = alwaysTrue,
 ): WarningRulePayload {
@@ -193,6 +260,7 @@ export function warningPayload(
     family: "WARNING",
     scope: "CASE",
     condition,
-    consequence: { code, severity, qualifier },
+    precedence: [],
+    resolution: { state: "RESOLVED", consequence: { code, severity, qualifier } },
   };
 }

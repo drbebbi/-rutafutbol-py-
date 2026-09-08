@@ -37,7 +37,7 @@ export function validatePrecedenceGraph(
   for (const revision of revisions) {
     const from = revision.ruleId as string;
     const targets: string[] = [];
-    for (const edge of revision.precedence) {
+    for (const edge of revision.payload.precedence) {
       const to = edge.overRuleId as string;
       const target = byRuleId.get(to);
       if (target === undefined) {

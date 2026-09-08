@@ -5,6 +5,7 @@ import {
   instancesOf,
   resolveCountryTemplate,
   resolveParameterTemplates,
+  statedConsequence,
   type StageContext,
 } from "../../src/case-engine/evaluate/stage-context";
 import { evaluateRuleInstances } from "../../src/case-engine/evaluate/rule-instances";
@@ -13,9 +14,7 @@ import { resolveProcedureTarget } from "../../src/case-engine/procedures/target-
 import { resolveDocumentTarget } from "../../src/case-engine/documents/target-resolution";
 import {
   canonicalVerificationFlags,
-  toVerificationFlag,
   verificationFlagKey,
-  verificationTargetFor,
 } from "../../src/case-engine/verification/flags";
 import { buildBlockingIssues } from "../../src/case-engine/verification/blocking-issues";
 import { CURRENT_ENGINE_DESCRIPTOR } from "../../src/domain/evaluation/engine-descriptor";
@@ -24,7 +23,15 @@ import { unwrapOrThrow } from "../../src/shared/result/result";
 import { country, userCaseFacts } from "../fixtures/facts";
 import { executionContext } from "../fixtures/engine";
 import { alwaysTrue, resetRuleCounter, rule } from "../fixtures/rules";
-import { documentPayload, factParam, literalParam, procedurePayload, procedureSelector, reusePayload } from "../fixtures/payloads";
+import {
+  documentPayload,
+  factParam,
+  literalParam,
+  procedurePayload,
+  procedureSelector,
+  reusePayload,
+  unresolved,
+} from "../fixtures/payloads";
 import type { DocumentTargetSelector } from "../../src/rules/definitions/payloads";
 import type { DocumentIndex } from "../../src/case-engine/documents/target-resolution";
 import type { VerificationFlag } from "../../src/domain/evaluation/issues";
@@ -134,7 +141,16 @@ describe("rule instances and scopes", () => {
         operator: "EQ",
         operand: { kind: "STRING", value: "DE" },
       },
-      consequence: { procedureId: id("syn.p"), parameters: [], discriminator: null, requirement: "REQUIRED" },
+      precedence: [],
+      resolution: {
+        state: "RESOLVED",
+        consequence: {
+          procedureId: id("syn.p"),
+          parameters: [],
+          discriminator: null,
+          requirement: "REQUIRED",
+        },
+      },
     });
     const instances = unwrapOrThrow(evaluateRuleInstances(revision, view, context));
     expect(instances).toHaveLength(2);
@@ -152,7 +168,16 @@ describe("rule instances and scopes", () => {
         operator: "EQ",
         operand: { kind: "STRING", value: "PY" },
       },
-      consequence: { procedureId: id("syn.p"), parameters: [], discriminator: null, requirement: "REQUIRED" },
+      precedence: [],
+      resolution: {
+        state: "RESOLVED",
+        consequence: {
+          procedureId: id("syn.p"),
+          parameters: [],
+          discriminator: null,
+          requirement: "REQUIRED",
+        },
+      },
     });
     const instances = unwrapOrThrow(evaluateRuleInstances(revision, unknownView, context));
     expect(instances).toHaveLength(1);
@@ -165,7 +190,16 @@ describe("rule instances and scopes", () => {
       family: "PROCEDURE",
       scope: "EACH_DOCUMENT_INSTANCE",
       condition: alwaysTrue,
-      consequence: { procedureId: id("syn.p"), parameters: [], discriminator: null, requirement: "REQUIRED" },
+      precedence: [],
+      resolution: {
+        state: "RESOLVED",
+        consequence: {
+          procedureId: id("syn.p"),
+          parameters: [],
+          discriminator: null,
+          requirement: "REQUIRED",
+        },
+      },
     });
     const result = evaluateRuleInstances(revision, view, context);
     expect(!result.ok && result.error.code).toBe("UNSUPPORTED_SCOPE_FOR_FAMILY");
@@ -205,14 +239,41 @@ describe("rule instances and scopes", () => {
   });
 
   it("marks an unresolved rule as carrying no consequence", () => {
-    const revision = rule("r.u", procedurePayload("syn.p"), {
-      verificationStatus: "OFFICIAL_VERIFICATION_REQUIRED",
-      verification: { code: "PROCEDURE_REQUIREMENT_UNCONFIRMED", targetKind: "PROCEDURE" },
-    });
+    const revision = rule(
+      "r.u",
+      unresolved(procedurePayload("syn.p"), "OFFICIAL_VERIFICATION_REQUIRED", {
+        code: "PROCEDURE_REQUIREMENT_UNCONFIRMED",
+        target: { kind: "PROCEDURE", targetProcedure: procedureSelector("syn.p") },
+      }),
+      { verificationStatus: "OFFICIAL_VERIFICATION_REQUIRED" },
+    );
     const instances = unwrapOrThrow(evaluateRuleInstances(revision, view, context));
-    expect(instances[0]?.resolution).toBe("UNRESOLVED_VERIFICATION");
     expect(instances[0]?.support).toBeNull();
-    expect(instances[0]?.unresolvedReason).toBe("OFFICIAL_VERIFICATION_REQUIRED");
+    expect(instances[0]?.unresolved?.reason).toBe("OFFICIAL_VERIFICATION_REQUIRED");
+    expect(statedConsequence(instances[0]!)).toBeNull();
+  });
+
+  it("refuses a rule whose resolution contradicts its evidence status", () => {
+    const revision = rule("r.mismatch", procedurePayload("syn.p"));
+    const broken = { ...revision, verificationStatus: "CONFLICTING" as const };
+    const result = evaluateRuleInstances(broken, view, context);
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.error.code).toBe("RESOLUTION_STATUS_MISMATCH");
+
+    const asks = rule(
+      "r.asks",
+      unresolved(procedurePayload("syn.p"), "CONFLICTING", {
+        code: "PROCEDURE_REQUIREMENT_UNCONFIRMED",
+        target: { kind: "CASE" },
+      }),
+      { verificationStatus: "CONFLICTING" },
+    );
+    const reversed = evaluateRuleInstances(
+      { ...asks, verificationStatus: "CONFIRMED" as const },
+      view,
+      context,
+    );
+    expect(!reversed.ok && reversed.error.code).toBe("RESOLUTION_STATUS_MISMATCH");
   });
 
   it("exposes declared precedence as a lookup set", () => {
@@ -464,37 +525,6 @@ describe("target outcome classification", () => {
 describe("verification flags", () => {
   const procedureKey = "rp1:syn.p||-" as RequiredProcedureKey;
   const documentKey = "rd1:syn.d" as RequiredDocumentKey;
-
-  it("honours a declared target kind when the slot can supply it", () => {
-    expect(verificationTargetFor("PROCEDURE", { procedureKey })).toEqual({ kind: "PROCEDURE", procedureKey });
-    expect(verificationTargetFor("DOCUMENT", { documentKey })).toEqual({ kind: "DOCUMENT", documentKey });
-    expect(verificationTargetFor("VISA_PURPOSE", { purposeCode: id("syn.purpose") }).kind).toBe("VISA_PURPOSE");
-    expect(
-      verificationTargetFor("FEE_COMPONENT", { procedureKey, componentCode: id("syn.c") }).kind,
-    ).toBe("FEE_COMPONENT");
-    expect(verificationTargetFor("CASE", {})).toEqual({ kind: "CASE" });
-  });
-
-  it("falls back to CASE when the slot cannot supply the declared target", () => {
-    expect(verificationTargetFor("PROCEDURE", {}).kind).toBe("CASE");
-    expect(verificationTargetFor("DOCUMENT", {}).kind).toBe("CASE");
-    expect(verificationTargetFor("VISA_PURPOSE", {}).kind).toBe("CASE");
-    expect(verificationTargetFor("FEE_COMPONENT", { procedureKey }).kind).toBe("CASE");
-  });
-
-  it("builds a flag with the rule's provenance", () => {
-    const flag = toVerificationFlag(
-      {
-        verification: { code: "PROCEDURE_REQUIREMENT_UNCONFIRMED", targetKind: "PROCEDURE" },
-        reason: "CONFLICTING",
-        provenance: { ruleId: id("r.a"), ruleRevisionId: id("rev"), sourceRevisionIds: [] },
-        ruleId: id("r.a"),
-      },
-      { procedureKey },
-    );
-    expect(flag.reason).toBe("CONFLICTING");
-    expect(flag.provenance).toHaveLength(1);
-  });
 
   it("derives a stable key for every target shape", () => {
     const keys: readonly string[] = [

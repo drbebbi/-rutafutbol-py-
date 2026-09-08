@@ -41,13 +41,18 @@ for (const directory of directories) {
           failures += 1;
           console.error(`[evidence] ${name} ${ruleId}: ${revision.verificationStatus} rule cites no source`);
         }
-        if (revision.verification !== null) {
+        if (revision.payload.resolution.state !== "RESOLVED") {
           failures += 1;
-          console.error(`[evidence] ${name} ${ruleId}: resolved rule carries a verification declaration`);
+          console.error(`[evidence] ${name} ${ruleId}: rule with support-level evidence states no consequence`);
         }
-      } else if (revision.verification === null) {
+      } else if (revision.payload.resolution.state !== "UNRESOLVED") {
         failures += 1;
         console.error(`[evidence] ${name} ${ruleId}: unresolved rule declares nothing to verify`);
+      } else if (revision.payload.resolution.reason !== revision.verificationStatus) {
+        failures += 1;
+        console.error(
+          `[evidence] ${name} ${ruleId}: unresolved for ${revision.payload.resolution.reason} but evidence status is ${revision.verificationStatus}`,
+        );
       }
 
       for (const evidence of revision.evidence) {

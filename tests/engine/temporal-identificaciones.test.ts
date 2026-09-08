@@ -1,7 +1,14 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { userCaseFacts } from "../fixtures/facts";
 import { firstCedulaPolicy, pathway, resetRuleCounter, rule, supportedCoverage } from "../fixtures/rules";
-import { caseTypePayload, documentPayload, procedurePayload, residencePayload } from "../fixtures/payloads";
+import {
+  caseTypePayload,
+  documentPayload,
+  procedurePayload,
+  procedureSelector,
+  residencePayload,
+  unresolved,
+} from "../fixtures/payloads";
 import { expectOk, runEngine } from "../fixtures/engine";
 import { knownFact } from "../../src/domain/case/knowledge";
 
@@ -56,17 +63,21 @@ describe("temporal residence -> first cedula, Identificaciones document set", ()
           // verification and deliberately carries no document consequence.
           rule(
             "r.identificaciones-document-set",
-            documentPayload(
-              "synthetic.identificaciones-cedula",
-              "synthetic.residence-evidence-document",
-            ),
-            {
-              verificationStatus: "CONFLICTING",
-              verification: {
+            unresolved(
+              documentPayload(
+                "synthetic.identificaciones-cedula",
+                "synthetic.residence-evidence-document",
+              ),
+              "CONFLICTING",
+              {
                 code: "TEMPORAL_IDENTIFICACIONES_DOCUMENT_SET",
-                targetKind: "PROCEDURE",
+                target: {
+                  kind: "PROCEDURE",
+                  targetProcedure: procedureSelector("synthetic.identificaciones-cedula"),
+                },
               },
-            },
+            ),
+            { verificationStatus: "CONFLICTING" },
           ),
         ],
         extras,
@@ -99,11 +110,21 @@ describe("temporal residence -> first cedula, Identificaciones document set", ()
           rule("r.procedure", procedurePayload("synthetic.identificaciones-cedula")),
           rule(
             "r.identificaciones-document-set",
-            documentPayload("synthetic.identificaciones-cedula", "synthetic.residence-evidence-document"),
-            {
-              verificationStatus: "OFFICIAL_VERIFICATION_REQUIRED",
-              verification: { code: "TEMPORAL_IDENTIFICACIONES_DOCUMENT_SET", targetKind: "PROCEDURE" },
-            },
+            unresolved(
+              documentPayload(
+                "synthetic.identificaciones-cedula",
+                "synthetic.residence-evidence-document",
+              ),
+              "OFFICIAL_VERIFICATION_REQUIRED",
+              {
+                code: "TEMPORAL_IDENTIFICACIONES_DOCUMENT_SET",
+                target: {
+                  kind: "PROCEDURE",
+                  targetProcedure: procedureSelector("synthetic.identificaciones-cedula"),
+                },
+              },
+            ),
+            { verificationStatus: "OFFICIAL_VERIFICATION_REQUIRED" },
           ),
         ],
         extras,

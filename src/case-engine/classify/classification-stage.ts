@@ -7,22 +7,26 @@ import type {
   ResidenceClassificationResult,
 } from "../../domain/residence/residence";
 import type { SupportLevel } from "../../domain/rules/verification";
-import type { VerificationFlag } from "../../domain/evaluation/issues";
 import type { RuleFactPath } from "../../rules/definitions/fact-paths";
 import type {
-  ClassificationRulePayload,
+  ClassificationConsequence,
   RequirementValue,
-  VisaRulePayload,
+  SpecialCaseConsequence,
+  VisaConsequence as VisaRuleConsequence,
 } from "../../rules/definitions/payloads";
-import { compareStrings, consequenceKeyOf } from "../canonicalization/ordering";
+import { compareStrings } from "../canonicalization/ordering";
 import type { EngineError } from "../errors/engine-error";
 import { resolveSlots, type SlotCandidate } from "../precedence/resolve-slot";
-import { toVerificationFlag } from "../verification/flags";
-import { dominatedRuleIds, instancesOf, type StageContext } from "../evaluate/stage-context";
+import {
+  instancesOf,
+  slotCandidate,
+  statedConsequence,
+  type StageContext,
+} from "../evaluate/stage-context";
 
-type CaseTypeConsequence = Readonly<{ caseType: CaseType }>;
-type ResidenceConsequence = Readonly<{ classification: ResidenceClassification }>;
-type VisaConsequence = Readonly<{ requirement: RequirementValue }>;
+type CaseTypeSlotConsequence = Readonly<{ caseType: CaseType }>;
+type ResidenceSlotConsequence = Readonly<{ classification: ResidenceClassification }>;
+type VisaSlotConsequence = Readonly<{ requirement: RequirementValue }>;
 
 export type VisaDecision = Readonly<{
   purposeCode: VisaPurposeCode;
@@ -38,34 +42,12 @@ export type ClassificationStageResult = Readonly<{
   residence: ResidenceClassificationResult;
   residenceProvenance: readonly ProvenanceRef[];
   visaDecisions: readonly VisaDecision[];
-  verifications: readonly VerificationFlag[];
+  /** Rule ids silenced by a confirmed winner in any slot of this stage. */
+  suppressedRuleIds: readonly string[];
+  /** The subset of those silenced in the residence classification slot. */
+  residenceSuppressedRuleIds: readonly string[];
   decisionRelevantFactPaths: readonly RuleFactPath[];
 }>;
-
-function baseCandidate<T>(
-  instance: ReturnType<typeof instancesOf>[number],
-  slotKey: string,
-  slotFamily: SlotCandidate<T>["slotFamily"],
-  consequence: T,
-): SlotCandidate<T> & { provenance: ProvenanceRef } {
-  return {
-    slotKey,
-    slotFamily,
-    ruleId: instance.revision.ruleId,
-    truth: instance.truth,
-    resolution: instance.resolution,
-    support: instance.support,
-    unresolvedReason: instance.unresolvedReason,
-    verification: instance.revision.verification,
-    consequence: instance.resolution === "RESOLVED_CONSEQUENCE" ? consequence : null,
-    consequenceKey:
-      instance.resolution === "RESOLVED_CONSEQUENCE" ? consequenceKeyOf(consequence) : null,
-    indeterminateFactPaths: instance.indeterminateFactPaths,
-    unguardedNotApplicablePaths: instance.unguardedNotApplicablePaths,
-    dominates: dominatedRuleIds(instance.revision),
-    provenance: instance.provenance,
-  };
-}
 
 /**
  * Legal classification stage: case type, residence classification, visa.
@@ -77,30 +59,35 @@ function baseCandidate<T>(
 export function runClassificationStage(
   stage: StageContext,
 ): Result<ClassificationStageResult, EngineError> {
-  const caseTypeCandidates: (SlotCandidate<CaseTypeConsequence> & { provenance: ProvenanceRef })[] = [];
-  const residenceCandidates: (SlotCandidate<ResidenceConsequence> & { provenance: ProvenanceRef })[] = [];
-  const visaCandidates: (SlotCandidate<VisaConsequence> & { provenance: ProvenanceRef })[] = [];
+  const caseTypeCandidates: (SlotCandidate<CaseTypeSlotConsequence> & { provenance: ProvenanceRef })[] = [];
+  const residenceCandidates: (SlotCandidate<ResidenceSlotConsequence> & { provenance: ProvenanceRef })[] = [];
+  const visaCandidates: (SlotCandidate<VisaSlotConsequence> & { provenance: ProvenanceRef })[] = [];
   const visaPurposeBySlot = new Map<string, VisaPurposeCode>();
 
   for (const instance of instancesOf(stage, "CLASSIFICATION")) {
     if (instance.truth === "FALSE") {
       continue;
     }
-    // Grouped by family above; the cast records the invariant.
-    const payload = instance.revision.payload as ClassificationRulePayload;
-    if (payload.consequence.kind === "CASE_TYPE") {
+    const stated = statedConsequence<ClassificationConsequence>(instance);
+    if (stated === null) {
+      // The rule states a verification request, not a consequence. It never
+      // enters a decision slot; the unresolved track handles it.
+      continue;
+    }
+    if (stated.consequence.kind === "CASE_TYPE") {
       caseTypeCandidates.push(
-        baseCandidate<CaseTypeConsequence>(instance, "CASE_TYPE", "CASE_TYPE", {
-          caseType: payload.consequence.caseType,
+        slotCandidate<CaseTypeSlotConsequence>(instance, stated.support, "CASE_TYPE", "CASE_TYPE", {
+          caseType: stated.consequence.caseType,
         }),
       );
     } else {
       residenceCandidates.push(
-        baseCandidate<ResidenceConsequence>(
+        slotCandidate<ResidenceSlotConsequence>(
           instance,
+          stated.support,
           "RESIDENCE_CLASSIFICATION",
           "RESIDENCE_CLASSIFICATION",
-          { classification: payload.consequence.classification },
+          { classification: stated.consequence.classification },
         ),
       );
     }
@@ -110,10 +97,14 @@ export function runClassificationStage(
     if (instance.truth === "FALSE") {
       continue;
     }
+    const stated = statedConsequence<SpecialCaseConsequence>(instance);
+    if (stated === null) {
+      continue;
+    }
     // Every special-case rule says the same thing about the case type, so they
     // merge rather than conflict; the specific signal lives in the modifiers.
     caseTypeCandidates.push(
-      baseCandidate<CaseTypeConsequence>(instance, "CASE_TYPE", "CASE_TYPE", {
+      slotCandidate<CaseTypeSlotConsequence>(instance, stated.support, "CASE_TYPE", "CASE_TYPE", {
         caseType: "SPECIAL_CASE",
       }),
     );
@@ -123,18 +114,21 @@ export function runClassificationStage(
     if (instance.truth === "FALSE") {
       continue;
     }
-    const payload = instance.revision.payload as VisaRulePayload;
-    const slotKey = `VISA:${payload.consequence.purposeCode as string}`;
-    visaPurposeBySlot.set(slotKey, payload.consequence.purposeCode);
+    const stated = statedConsequence<VisaRuleConsequence>(instance);
+    if (stated === null) {
+      continue;
+    }
+    const slotKey = `VISA:${stated.consequence.purposeCode as string}`;
+    visaPurposeBySlot.set(slotKey, stated.consequence.purposeCode);
     visaCandidates.push(
-      baseCandidate<VisaConsequence>(instance, slotKey, "VISA", {
-        requirement: payload.consequence.requirement,
+      slotCandidate<VisaSlotConsequence>(instance, stated.support, slotKey, "VISA", {
+        requirement: stated.consequence.requirement,
       }),
     );
   }
 
-  const verifications: VerificationFlag[] = [];
   const relevantPaths = new Set<RuleFactPath>();
+  const suppressedRuleIds = new Set<string>();
 
   const caseTypeResolved = resolveSlots(caseTypeCandidates);
   if (!caseTypeResolved.ok) {
@@ -144,11 +138,11 @@ export function runClassificationStage(
   let caseTypeSupport: SupportLevel | null = null;
   let caseTypeProvenance: readonly ProvenanceRef[] = [];
   for (const resolution of caseTypeResolved.value) {
-    for (const verification of resolution.verifications) {
-      verifications.push(toVerificationFlag(verification, {}));
-    }
     for (const path of resolution.decisionRelevantFactPaths) {
       relevantPaths.add(path);
+    }
+    for (const ruleId of resolution.suppressedRuleIds) {
+      suppressedRuleIds.add(ruleId);
     }
     if (resolution.decided !== null) {
       ruleCaseType = resolution.decided.consequence.caseType;
@@ -163,18 +157,18 @@ export function runClassificationStage(
   }
   let residence: ResidenceClassificationResult = { state: "UNRESOLVED", classification: null };
   let residenceProvenance: readonly ProvenanceRef[] = [];
+  const residenceSuppressedRuleIds = new Set<string>();
   for (const resolution of residenceResolved.value) {
-    for (const verification of resolution.verifications) {
-      verifications.push(toVerificationFlag(verification, {}));
-    }
     for (const path of resolution.decisionRelevantFactPaths) {
       relevantPaths.add(path);
+    }
+    for (const ruleId of resolution.suppressedRuleIds) {
+      suppressedRuleIds.add(ruleId);
+      residenceSuppressedRuleIds.add(ruleId);
     }
     if (resolution.decided !== null) {
       residence = { state: "CLASSIFIED", classification: resolution.decided.consequence.classification };
       residenceProvenance = resolution.decided.provenance;
-    } else if (resolution.verifications.length > 0) {
-      residence = { state: "STATUS_REVIEW_REQUIRED", classification: null };
     } else if (resolution.decisionRelevantFactPaths.length > 0) {
       residence = { state: "CLASSIFICATION_REQUIRED", classification: null };
     }
@@ -187,18 +181,17 @@ export function runClassificationStage(
   const visaDecisions: VisaDecision[] = [];
   for (const resolution of visaResolved.value) {
     const purposeCode = visaPurposeBySlot.get(resolution.slotKey);
-    for (const verification of resolution.verifications) {
-      verifications.push(
-        toVerificationFlag(
-          verification,
-          purposeCode === undefined ? {} : { purposeCode },
-        ),
-      );
-    }
     for (const path of resolution.decisionRelevantFactPaths) {
       relevantPaths.add(path);
     }
-    if (resolution.decided !== null && purposeCode !== undefined) {
+    for (const ruleId of resolution.suppressedRuleIds) {
+      suppressedRuleIds.add(ruleId);
+    }
+    /* v8 ignore next 3 -- every visa slot key was registered above; the guard exists so a future refactor fails loudly rather than silently. */
+    if (purposeCode === undefined) {
+      continue;
+    }
+    if (resolution.decided !== null) {
       visaDecisions.push({
         purposeCode,
         requirement: resolution.decided.consequence.requirement,
@@ -217,7 +210,8 @@ export function runClassificationStage(
     visaDecisions: [...visaDecisions].sort((a, b) =>
       compareStrings(a.purposeCode as string, b.purposeCode as string),
     ),
-    verifications,
+    suppressedRuleIds: [...suppressedRuleIds].sort(compareStrings),
+    residenceSuppressedRuleIds: [...residenceSuppressedRuleIds].sort(compareStrings),
     decisionRelevantFactPaths: [...relevantPaths].sort(),
   });
 }

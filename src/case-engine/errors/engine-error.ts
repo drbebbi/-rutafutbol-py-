@@ -21,7 +21,17 @@ export type RuleConfigurationErrorCode =
   | "PATHWAY_AMBIGUOUS"
   | "PATHWAY_VIOLATES_DEPENDENCIES"
   | "PARAMETER_FACT_UNRESOLVED"
-  | "UNSUPPORTED_SCOPE_FOR_FAMILY";
+  | "UNSUPPORTED_SCOPE_FOR_FAMILY"
+  /** A rule's resolution state contradicts its evidence status. */
+  | "RESOLUTION_STATUS_MISMATCH"
+  /** An unresolved rule points at a target the decision does not contain. */
+  | "VERIFICATION_TARGET_MISSING"
+  /** An unresolved rule's target matches more than one thing. */
+  | "VERIFICATION_TARGET_AMBIGUOUS"
+  /** A product policy that the coverage state requires is not in the bundle. */
+  | "PRODUCT_POLICY_MISSING"
+  /** A product policy effect contradicts another for the same case. */
+  | "PRODUCT_POLICY_CONFLICT";
 
 export type EngineInvariantViolationCode =
   | "BUNDLE_EFFECTIVE_DATE_MISMATCH"

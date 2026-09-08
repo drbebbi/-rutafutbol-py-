@@ -1,10 +1,9 @@
 import { err, ok, type Result } from "../../shared/result/result";
 import type { RuleId } from "../../domain/identifiers/identifiers";
 import type { ProvenanceRef } from "../../domain/evaluation/provenance";
-import { mergeSupport, type SupportLevel, type UnresolvedReason } from "../../domain/rules/verification";
+import { mergeSupport, type SupportLevel } from "../../domain/rules/verification";
 import type { RuleFactPath } from "../../rules/definitions/fact-paths";
 import type { DecisionSlotFamily } from "../../rules/definitions/payloads";
-import type { RuleVerificationDeclaration } from "../../rules/definitions/rule-revision";
 import { canonicalProvenance, compareStrings } from "../canonicalization/ordering";
 import { ruleConfigurationError, type EngineError } from "../errors/engine-error";
 
@@ -20,12 +19,17 @@ export type SlotCandidate<T> = Readonly<{
   slotFamily: DecisionSlotFamily;
   ruleId: RuleId;
   truth: "TRUE" | "FALSE" | "INDETERMINATE";
-  resolution: "RESOLVED_CONSEQUENCE" | "UNRESOLVED_VERIFICATION";
-  support: SupportLevel | null;
-  unresolvedReason: UnresolvedReason | null;
-  verification: RuleVerificationDeclaration | null;
-  consequence: T | null;
-  consequenceKey: string | null;
+  /**
+   * Every candidate states a consequence.
+   *
+   * Rules that state no consequence never reach a slot at all: they are
+   * verification requests, handled outside the precedence machinery, so there
+   * is no code path here through which an unresolved rule could contribute to
+   * a legal statement.
+   */
+  support: SupportLevel;
+  consequence: T;
+  consequenceKey: string;
   indeterminateFactPaths: readonly RuleFactPath[];
   /**
    * Paths that went indeterminate purely because they were NOT_APPLICABLE and
@@ -37,13 +41,6 @@ export type SlotCandidate<T> = Readonly<{
   dominates: ReadonlySet<string>;
 }>;
 
-export type SlotVerification = Readonly<{
-  verification: RuleVerificationDeclaration;
-  reason: UnresolvedReason;
-  provenance: ProvenanceRef;
-  ruleId: RuleId;
-}>;
-
 export type SlotResolution<T> = Readonly<{
   slotKey: string;
   slotFamily: DecisionSlotFamily;
@@ -53,7 +50,15 @@ export type SlotResolution<T> = Readonly<{
     support: SupportLevel;
     provenance: readonly ProvenanceRef[];
   }> | null;
-  verifications: readonly SlotVerification[];
+  /**
+   * Rule ids a confirmed winner in this slot explicitly takes precedence over.
+   *
+   * Reported rather than consumed here, because a dominated rule may state a
+   * verification request instead of a consequence, and those live outside the
+   * slot. A rule the winner would beat anyway can neither block nor ask for
+   * verification.
+   */
+  suppressedRuleIds: readonly string[];
   /**
    * Fact paths whose indeterminacy could still change this slot's outcome.
    * Only these become blocking issues; an indeterminate rule that could not
@@ -69,7 +74,7 @@ function groupsByConsequence<T>(
 ): ReadonlyMap<string, readonly CandidateWithProvenance<T>[]> {
   const groups = new Map<string, CandidateWithProvenance<T>[]>();
   for (const candidate of candidates) {
-    const key = candidate.consequenceKey as string;
+    const key = candidate.consequenceKey;
     const list = groups.get(key) ?? [];
     list.push(candidate);
     groups.set(key, list);
@@ -97,12 +102,7 @@ export function resolveSlot<T>(
     );
   }
 
-  const authoritative = candidates.filter(
-    (candidate) => candidate.truth === "TRUE" && candidate.resolution === "RESOLVED_CONSEQUENCE",
-  );
-  const unresolvedTrue = candidates.filter(
-    (candidate) => candidate.truth === "TRUE" && candidate.resolution === "UNRESOLVED_VERIFICATION",
-  );
+  const authoritative = candidates.filter((candidate) => candidate.truth === "TRUE");
   const indeterminate = candidates.filter((candidate) => candidate.truth === "INDETERMINATE");
 
   let winners: readonly CandidateWithProvenance<T>[] = authoritative;
@@ -118,9 +118,8 @@ export function resolveSlot<T>(
       for (const [key, group] of opposingByGroup) {
         const opponents = authoritative.filter((candidate) => candidate.consequenceKey !== key);
         for (const candidate of group) {
-          // Only a TRUE, RESOLVED, CONFIRMED rule may suppress. STRONG_EVIDENCE
-          // never overrides a contradicting confirmed rule, and an unresolved
-          // rule never suppresses anything.
+          // Only a TRUE, CONFIRMED rule may suppress: STRONG_EVIDENCE never
+          // overrides a contradicting confirmed rule.
           if (candidate.support !== "CONFIRMED") {
             continue;
           }
@@ -183,57 +182,31 @@ export function resolveSlot<T>(
       ? (() => {
           const head = winners[0] as CandidateWithProvenance<T>;
           const support = winners.reduce<SupportLevel>(
-            (acc, candidate) => mergeSupport(acc, candidate.support as SupportLevel),
-            (head.support as SupportLevel),
+            (acc, candidate) => mergeSupport(acc, candidate.support),
+            head.support,
           );
           return {
-            consequence: head.consequence as T,
-            consequenceKey: head.consequenceKey as string,
+            consequence: head.consequence,
+            consequenceKey: head.consequenceKey,
             support,
             provenance: canonicalProvenance(winners.map((candidate) => candidate.provenance)),
           };
         })()
       : null;
 
-  const verifications: SlotVerification[] = [];
-  for (const candidate of unresolvedTrue) {
-    if (suppressed.has(candidate.ruleId as string)) {
-      continue;
-    }
-    if (candidate.verification === null || candidate.unresolvedReason === null) {
-      return err(
-        ruleConfigurationError(
-          "DECISION_CONFLICT",
-          `unresolved rule "${candidate.ruleId}" carries no verification declaration`,
-          candidate.ruleId,
-        ),
-      );
-    }
-    verifications.push({
-      verification: candidate.verification,
-      reason: candidate.unresolvedReason,
-      provenance: candidate.provenance,
-      ruleId: candidate.ruleId,
-    });
-  }
-
   /*
    * Decision-relevant indeterminacy.
    *
    * An indeterminate rule only blocks when its possible TRUE outcome could
-   * change what this slot currently says: a different consequence, a
-   * consequence where there is none, or a verification requirement that is not
-   * already raised.
+   * change what this slot currently says: a different consequence, or a
+   * consequence where there is none.
    */
   const relevantPaths = new Set<RuleFactPath>();
   for (const candidate of indeterminate) {
     if (suppressed.has(candidate.ruleId as string)) {
       continue;
     }
-    const wouldChange =
-      candidate.resolution === "UNRESOLVED_VERIFICATION"
-        ? verifications.length === 0
-        : decided === null || candidate.consequenceKey !== decided.consequenceKey;
+    const wouldChange = decided === null || candidate.consequenceKey !== decided.consequenceKey;
     if (!wouldChange) {
       continue;
     }
@@ -258,7 +231,7 @@ export function resolveSlot<T>(
     slotKey: first.slotKey,
     slotFamily: first.slotFamily,
     decided,
-    verifications: [...verifications].sort((a, b) => compareStrings(a.ruleId as string, b.ruleId as string)),
+    suppressedRuleIds: [...suppressed].sort(compareStrings),
     decisionRelevantFactPaths: [...relevantPaths].sort(),
   });
 }

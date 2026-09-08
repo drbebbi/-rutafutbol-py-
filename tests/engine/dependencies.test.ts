@@ -1,7 +1,12 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { userCaseFacts } from "../fixtures/facts";
 import { firstCedulaPolicy, pathway, resetRuleCounter, rule, supportedCoverage } from "../fixtures/rules";
-import { caseTypePayload, dependencyPayload, procedurePayload } from "../fixtures/payloads";
+import {
+  caseTypePayload,
+  dependencyPayload,
+  procedurePayload,
+  unresolved,
+} from "../fixtures/payloads";
 import { expectErr, expectOk, runEngine } from "../fixtures/engine";
 import { topologicalOrder } from "../../src/case-engine/graph/dependency-stage";
 import type { RequiredProcedure, RequiredProcedureDependency } from "../../src/domain/procedures/procedure";
@@ -229,10 +234,14 @@ describe("pathway presentation", () => {
         userCaseFacts(),
         [
           caseTypeRule(),
-          rule("r.unresolved", procedurePayload("synthetic.first"), {
-            verificationStatus: "OFFICIAL_VERIFICATION_REQUIRED",
-            verification: { code: "PROCEDURE_REQUIREMENT_UNCONFIRMED", targetKind: "CASE" },
-          }),
+          rule(
+            "r.unresolved",
+            unresolved(procedurePayload("synthetic.first"), "OFFICIAL_VERIFICATION_REQUIRED", {
+              code: "PROCEDURE_REQUIREMENT_UNCONFIRMED",
+              target: { kind: "CASE" },
+            }),
+            { verificationStatus: "OFFICIAL_VERIFICATION_REQUIRED" },
+          ),
         ],
         extras,
       ),

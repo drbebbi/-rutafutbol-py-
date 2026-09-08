@@ -231,12 +231,16 @@ describe("target resolution", () => {
       family: "DOCUMENT_REQUIREMENT",
       scope: "CASE",
       condition: alwaysTrue,
-      consequence: {
-        forProcedure: procedureSelector("synthetic.apostille", null),
-        documentTypeId: id("synthetic.birth-certificate"),
-        issuingCountry: null,
-        discriminator: null,
-        requirement: "REQUIRED",
+      precedence: [],
+      resolution: {
+        state: "RESOLVED",
+        consequence: {
+          forProcedure: procedureSelector("synthetic.apostille", null),
+          documentTypeId: id("synthetic.birth-certificate"),
+          issuingCountry: null,
+          discriminator: null,
+          requirement: "REQUIRED",
+        },
       },
     };
     const error = expectErr(

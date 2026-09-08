@@ -8,7 +8,15 @@ import {
   rule,
   supportedCoverage,
 } from "../fixtures/rules";
-import { caseTypePayload, documentPayload, feePayload, procedurePayload, reusePayload } from "../fixtures/payloads";
+import {
+  caseTypePayload,
+  documentPayload,
+  documentSelector,
+  feePayload,
+  procedurePayload,
+  reusePayload,
+  unresolved,
+} from "../fixtures/payloads";
 import { expectErr, expectOk, runEngine } from "../fixtures/engine";
 import { resolveFeeIndex } from "../../src/case-engine/fees/fee-stage";
 import { buildCostEstimate } from "../../src/case-engine/fees/cost-estimate";
@@ -322,10 +330,21 @@ describe("document reuse", () => {
         userCaseFacts(),
         [
           ...withDocument(),
-          rule("r.reuse", reusePayload("synthetic.p", "synthetic.birth-certificate", "REUSABLE_CONFIRMED"), {
-            verificationStatus: "OFFICIAL_VERIFICATION_REQUIRED",
-            verification: { code: "DOCUMENT_REUSE_UNCONFIRMED", targetKind: "DOCUMENT" },
-          }),
+          rule(
+            "r.reuse",
+            unresolved(
+              reusePayload("synthetic.p", "synthetic.birth-certificate", "REUSABLE_CONFIRMED"),
+              "OFFICIAL_VERIFICATION_REQUIRED",
+              {
+                code: "DOCUMENT_REUSE_UNCONFIRMED",
+                target: {
+                  kind: "DOCUMENT",
+                  targetDocument: documentSelector("synthetic.p", "synthetic.birth-certificate"),
+                },
+              },
+            ),
+            { verificationStatus: "OFFICIAL_VERIFICATION_REQUIRED" },
+          ),
         ],
         base,
       ),

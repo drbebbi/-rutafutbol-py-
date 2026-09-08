@@ -65,13 +65,28 @@ describe("fact path registry", () => {
   it("keeps document readiness out of the legal access domain", () => {
     expect(lookupFactPath("scope.document.readinessStatus")?.accessDomain).toBe("DOCUMENT_STATE");
     expect(lookupFactPath("case.entryEvidence.state")?.accessDomain).toBe("ENTRY_READINESS");
+    /*
+     * Three families may look at what the applicant holds, and one more may
+     * also look at entry readiness. Everything that decides a legal
+     * *requirement* sees only the applicant's legal situation - in particular
+     * DOCUMENT_REQUIREMENT, so no amount of readiness can make the law stop
+     * asking for a document.
+     */
+    const mayReadDocumentState = new Set(["DOCUMENT_REUSE", "DOCUMENT_FORMALITY"]);
+    const mayReadEntryReadiness = new Set(["WARNING", "TIMELINE"]);
     for (const family of RULE_FAMILIES) {
       const domains = allowedAccessDomainsForFamily(family);
-      if (family === "DOCUMENT_REUSE" || family === "WARNING" || family === "TIMELINE") {
+      if (mayReadEntryReadiness.has(family)) {
+        expect(domains, family).toEqual(["CASE_LEGAL", "DOCUMENT_STATE", "ENTRY_READINESS"]);
+        continue;
+      }
+      if (mayReadDocumentState.has(family)) {
+        expect(domains, family).toEqual(["CASE_LEGAL", "DOCUMENT_STATE"]);
         continue;
       }
       expect(domains, family).toEqual(["CASE_LEGAL"]);
     }
+    expect(allowedAccessDomainsForFamily("DOCUMENT_REQUIREMENT")).toEqual(["CASE_LEGAL"]);
   });
 
   it("binds each scoped path to the scopes that can read it", () => {

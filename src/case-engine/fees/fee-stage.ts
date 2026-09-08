@@ -13,13 +13,16 @@ import type {
 } from "../../domain/fees/fee";
 import type { LocalDate } from "../../domain/primitives/local-date";
 import type { RuleFactPath } from "../../rules/definitions/fact-paths";
-import type { FeeRulePayload } from "../../rules/definitions/payloads";
-import { compareStrings, consequenceKeyOf } from "../canonicalization/ordering";
+import type { FeeConsequence as FeeRuleConsequence } from "../../rules/definitions/payloads";
+import { compareStrings } from "../canonicalization/ordering";
 import { ruleEvaluationError, type EngineError } from "../errors/engine-error";
 import { resolveSlots, type SlotCandidate } from "../precedence/resolve-slot";
-import type { VerificationFlag } from "../../domain/evaluation/issues";
-import { toVerificationFlag } from "../verification/flags";
-import { dominatedRuleIds, instancesOf, type StageContext } from "../evaluate/stage-context";
+import {
+  instancesOf,
+  slotCandidate,
+  statedConsequence,
+  type StageContext,
+} from "../evaluate/stage-context";
 import { classifyTargetOutcome } from "../evaluate/target-outcome";
 import { resolveProcedureTarget, type ProcedureIndex } from "../procedures/target-resolution";
 
@@ -27,7 +30,7 @@ type FeeConsequence = Readonly<{ feeType: FeeType; formula: FeeFormula }>;
 
 export type FeeStageResult = Readonly<{
   feeCalculations: readonly FeeCalculation[];
-  verifications: readonly VerificationFlag[];
+  suppressedRuleIds: readonly string[];
   decisionRelevantFactPaths: readonly RuleFactPath[];
 }>;
 
@@ -90,9 +93,12 @@ export function runFeeStage(
       continue;
     }
     // Grouped by family above; the cast records the invariant.
-    const payload = instance.revision.payload as FeeRulePayload;
+    const stated = statedConsequence<FeeRuleConsequence>(instance);
+    if (stated === null) {
+      continue;
+    }
     const target = resolveProcedureTarget(
-      payload.consequence.forProcedure,
+      stated.consequence.forProcedure,
       stage.view,
       instance.binding,
       procedureIndex,
@@ -105,7 +111,7 @@ export function runFeeStage(
       target.value.state,
       instance.truth,
       instance.revision.ruleId,
-      `fee targets procedure "${payload.consequence.forProcedure.procedureId}" (${target.value.state})`,
+      `fee targets procedure "${stated.consequence.forProcedure.procedureId}" (${target.value.state})`,
     );
     if (!decision.ok) {
       return decision;
@@ -119,32 +125,17 @@ export function runFeeStage(
       continue;
     }
     const procedureKey = (target.value as { key: string }).key;
-    const slotKey = `FEE:${procedureKey}:${payload.consequence.componentCode as string}`;
+    const slotKey = `FEE:${procedureKey}:${stated.consequence.componentCode as string}`;
     slotMeta.set(slotKey, {
       procedureKey,
-      componentCode: payload.consequence.componentCode as string,
+      componentCode: stated.consequence.componentCode as string,
     });
-    const consequence: FeeConsequence = {
-      feeType: payload.consequence.feeType,
-      formula: payload.consequence.formula,
-    };
-    candidates.push({
-      slotKey,
-      slotFamily: "FEE",
-      ruleId: instance.revision.ruleId,
-      truth: instance.truth,
-      resolution: instance.resolution,
-      support: instance.support,
-      unresolvedReason: instance.unresolvedReason,
-      verification: instance.revision.verification,
-      consequence: instance.resolution === "RESOLVED_CONSEQUENCE" ? consequence : null,
-      consequenceKey:
-        instance.resolution === "RESOLVED_CONSEQUENCE" ? consequenceKeyOf(consequence) : null,
-      indeterminateFactPaths: instance.indeterminateFactPaths,
-      unguardedNotApplicablePaths: instance.unguardedNotApplicablePaths,
-      dominates: dominatedRuleIds(instance.revision),
-      provenance: instance.provenance,
-    });
+    candidates.push(
+      slotCandidate<FeeConsequence>(instance, stated.support, slotKey, "FEE", {
+        feeType: stated.consequence.feeType,
+        formula: stated.consequence.formula,
+      }),
+    );
   }
 
   const resolved = resolveSlots(candidates);
@@ -152,7 +143,7 @@ export function runFeeStage(
     return resolved;
   }
 
-  const verifications: VerificationFlag[] = [];
+  const suppressedRuleIds = new Set<string>();
   const feeCalculations: FeeCalculation[] = [];
 
   for (const resolution of resolved.value) {
@@ -161,16 +152,11 @@ export function runFeeStage(
     if (meta === undefined) {
       continue;
     }
-    for (const verification of resolution.verifications) {
-      verifications.push(
-        toVerificationFlag(verification, {
-          procedureKey: meta.procedureKey as RequiredProcedureKey,
-          componentCode: meta.componentCode as FeeComponentCode,
-        }),
-      );
-    }
     for (const path of resolution.decisionRelevantFactPaths) {
       relevantPaths.add(path);
+    }
+    for (const ruleId of resolution.suppressedRuleIds) {
+      suppressedRuleIds.add(ruleId);
     }
     if (resolution.decided === null) {
       continue;
@@ -232,7 +218,7 @@ export function runFeeStage(
         ? byProcedure
         : compareStrings(a.componentCode as string, b.componentCode as string);
     }),
-    verifications,
+    suppressedRuleIds: [...suppressedRuleIds].sort(compareStrings),
     decisionRelevantFactPaths: [...relevantPaths].sort(),
   });
 }

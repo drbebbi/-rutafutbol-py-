@@ -20,6 +20,9 @@ export default tseslint.config(
       "next-env.d.ts",
       "public/**",
       "*.config.mjs",
+      // Not part of this application: an unrelated site that shares the git
+      // history and is excluded from the Cedula PY archive.
+      "rutafutbol-py/**",
     ],
   },
   js.configs.recommended,

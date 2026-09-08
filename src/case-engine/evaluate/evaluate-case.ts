@@ -23,6 +23,10 @@ import { buildCostEstimate } from "../fees/cost-estimate";
 import { runWarningStage } from "../warnings/warning-stage";
 import { buildBlockingIssues, type BlockingFactPath } from "../verification/blocking-issues";
 import { canonicalVerificationFlags } from "../verification/flags";
+import {
+  collectPendingVerifications,
+  resolveUnresolvedRules,
+} from "../verification/unresolved-rules";
 import { evaluateRuleInstances, type RuleInstance } from "./rule-instances";
 import type { StageContext } from "./stage-context";
 import { assessCompletion, finalStatus } from "./completion";
@@ -67,6 +71,18 @@ export function evaluateCase(
 
   const stage: StageContext = { view, context, bundle, engine, instancesByFamily };
 
+  /*
+   * Rules travel on two tracks that never merge.
+   *
+   * Rules that state a consequence go through the decision slots below. Rules
+   * that state no consequence - conflicting, unknown or awaiting official
+   * verification - are collected here and resolved at the very end, once the
+   * procedures, documents and fees their requests point at exist. Nothing on
+   * the second track can ever contribute a legal statement.
+   */
+  const pendingVerifications = collectPendingVerifications(instancesByFamily);
+  const suppressedRuleIds = new Set<string>();
+
   const blockingPaths: BlockingFactPath[] = [];
   const verificationFlags: VerificationFlag[] = [];
 
@@ -90,7 +106,9 @@ export function evaluateCase(
   if (!classification.ok) {
     return classification;
   }
-  verificationFlags.push(...classification.value.verifications);
+  for (const ruleId of classification.value.suppressedRuleIds) {
+    suppressedRuleIds.add(ruleId);
+  }
   for (const path of classification.value.decisionRelevantFactPaths) {
     blockingPaths.push({ path, slotFamily: "CASE_TYPE" });
   }
@@ -100,7 +118,9 @@ export function evaluateCase(
   if (!procedures.ok) {
     return procedures;
   }
-  verificationFlags.push(...procedures.value.verifications);
+  for (const ruleId of procedures.value.suppressedRuleIds) {
+    suppressedRuleIds.add(ruleId);
+  }
   for (const path of procedures.value.decisionRelevantFactPaths) {
     blockingPaths.push({ path, slotFamily: "PROCEDURE_REQUIREMENT" });
   }
@@ -110,7 +130,9 @@ export function evaluateCase(
   if (!documents.ok) {
     return documents;
   }
-  verificationFlags.push(...documents.value.verifications);
+  for (const ruleId of documents.value.suppressedRuleIds) {
+    suppressedRuleIds.add(ruleId);
+  }
   for (const path of documents.value.decisionRelevantFactPaths) {
     blockingPaths.push({ path, slotFamily: "DOCUMENT_REQUIREMENT" });
   }
@@ -124,7 +146,9 @@ export function evaluateCase(
   if (!dependencies.ok) {
     return dependencies;
   }
-  verificationFlags.push(...dependencies.value.verifications);
+  for (const ruleId of dependencies.value.suppressedRuleIds) {
+    suppressedRuleIds.add(ruleId);
+  }
   for (const path of dependencies.value.decisionRelevantFactPaths) {
     blockingPaths.push({ path, slotFamily: "DEPENDENCY" });
   }
@@ -139,7 +163,9 @@ export function evaluateCase(
   if (!reuse.ok) {
     return reuse;
   }
-  verificationFlags.push(...reuse.value.verifications);
+  for (const ruleId of reuse.value.suppressedRuleIds) {
+    suppressedRuleIds.add(ruleId);
+  }
   for (const path of reuse.value.decisionRelevantFactPaths) {
     blockingPaths.push({ path, slotFamily: "DOCUMENT_REUSE" });
   }
@@ -149,7 +175,9 @@ export function evaluateCase(
   if (!fees.ok) {
     return fees;
   }
-  verificationFlags.push(...fees.value.verifications);
+  for (const ruleId of fees.value.suppressedRuleIds) {
+    suppressedRuleIds.add(ruleId);
+  }
   for (const path of fees.value.decisionRelevantFactPaths) {
     blockingPaths.push({ path, slotFamily: "FEE" });
   }
@@ -174,10 +202,43 @@ export function evaluateCase(
   if (!warningStage.ok) {
     return warningStage;
   }
-  verificationFlags.push(...warningStage.value.verifications);
+  for (const ruleId of warningStage.value.suppressedRuleIds) {
+    suppressedRuleIds.add(ruleId);
+  }
   for (const path of warningStage.value.decisionRelevantFactPaths) {
     blockingPaths.push({ path, slotFamily: "WARNING" });
   }
+
+  /* -- unresolved rules: verification requests and their blockers ---------- */
+  const feeComponentKeys = new Set(
+    fees.value.feeCalculations.map(
+      (fee) => `${fee.forProcedure as string}|${fee.componentCode as string}`,
+    ),
+  );
+  const unresolved = resolveUnresolvedRules(pendingVerifications, suppressedRuleIds, {
+    view,
+    procedureIndex: procedures.value.index,
+    documentIndex: documents.value.documentIndex,
+    feeComponentKeys,
+    engine,
+  });
+  if (!unresolved.ok) {
+    return unresolved;
+  }
+  verificationFlags.push(...unresolved.value.flags);
+  blockingPaths.push(...unresolved.value.blockingPaths);
+
+  /*
+   * Residence classification with an open verification request.
+   *
+   * The rules that could have classified the residence stated a question
+   * instead of an answer, so the status is under review - not unresolved for
+   * want of an answer from the user, and certainly not classified.
+   */
+  const residenceResult = unresolved.value.familiesWithFlags.has("RESIDENCE_CLASSIFICATION")
+    && classification.value.residence.state !== "CLASSIFIED"
+      ? ({ state: "STATUS_REVIEW_REQUIRED", classification: null } as const)
+      : classification.value.residence;
 
   /* -- case type resolution ------------------------------------------------ */
   const structuralCaseType = resolveStructuralCaseType(facts, product.assessment.coverageState, guard.state);
@@ -282,7 +343,7 @@ export function evaluateCase(
   }
 
   return ok({
-    residenceClassification: classification.value.residence,
+    residenceClassification: residenceResult,
     caseClassification: { caseType, status },
     applicablePathway,
     modifiers,

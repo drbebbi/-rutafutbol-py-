@@ -6,13 +6,16 @@ import type {
   RequiredDocument,
 } from "../../domain/documents/required-document";
 import type { RuleFactPath } from "../../rules/definitions/fact-paths";
-import { compareStrings, consequenceKeyOf } from "../canonicalization/ordering";
+import { compareStrings } from "../canonicalization/ordering";
 import type { EngineError } from "../errors/engine-error";
 import { resolveSlots, type SlotCandidate } from "../precedence/resolve-slot";
-import type { VerificationFlag } from "../../domain/evaluation/issues";
-import { toVerificationFlag } from "../verification/flags";
-import type { DocumentReuseRulePayload } from "../../rules/definitions/payloads";
-import { dominatedRuleIds, instancesOf, type StageContext } from "../evaluate/stage-context";
+import type { DocumentReuseConsequence } from "../../rules/definitions/payloads";
+import {
+  instancesOf,
+  slotCandidate,
+  statedConsequence,
+  type StageContext,
+} from "../evaluate/stage-context";
 import { classifyTargetOutcome } from "../evaluate/target-outcome";
 import type { ProcedureIndex } from "../procedures/target-resolution";
 import { resolveDocumentTarget, type DocumentIndex } from "./target-resolution";
@@ -21,7 +24,7 @@ type ReuseConsequence = Readonly<{ resolution: Exclude<DocumentReuseResolution, 
 
 export type ReuseStageResult = Readonly<{
   assessments: readonly DocumentReuseAssessment[];
-  verifications: readonly VerificationFlag[];
+  suppressedRuleIds: readonly string[];
   decisionRelevantFactPaths: readonly RuleFactPath[];
 }>;
 
@@ -45,12 +48,15 @@ export function runReuseStage(
     if (instance.truth === "FALSE") {
       continue;
     }
-    // Instances are grouped by family before this loop, so the payload is
-    // known to be a DocumentReuseRulePayload; the cast records that invariant
-    // instead of adding a branch that can never be taken.
-    const payload = instance.revision.payload as DocumentReuseRulePayload;
+    // Instances are grouped by family before this loop, so the consequence is
+    // known to be a reuse consequence; the cast records that invariant instead
+    // of adding a branch that can never be taken.
+    const stated = statedConsequence<DocumentReuseConsequence>(instance);
+    if (stated === null) {
+      continue;
+    }
     const target = resolveDocumentTarget(
-      payload.consequence.forDocument,
+      stated.consequence.forDocument,
       stage.view,
       instance.binding,
       procedureIndex,
@@ -64,7 +70,7 @@ export function runReuseStage(
       target.value.state,
       instance.truth,
       instance.revision.ruleId,
-      `reuse rule targets document "${payload.consequence.forDocument.documentTypeId}" (${target.value.state})`,
+      `reuse rule targets document "${stated.consequence.forDocument.documentTypeId}" (${target.value.state})`,
     );
     if (!decision.ok) {
       return decision;
@@ -78,24 +84,15 @@ export function runReuseStage(
       continue;
     }
     const documentKey = (target.value as { key: string }).key;
-    const consequence: ReuseConsequence = { resolution: payload.consequence.resolution };
-    candidates.push({
-      slotKey: `DOCUMENT_REUSE:${documentKey}`,
-      slotFamily: "DOCUMENT_REUSE",
-      ruleId: instance.revision.ruleId,
-      truth: instance.truth,
-      resolution: instance.resolution,
-      support: instance.support,
-      unresolvedReason: instance.unresolvedReason,
-      verification: instance.revision.verification,
-      consequence: instance.resolution === "RESOLVED_CONSEQUENCE" ? consequence : null,
-      consequenceKey:
-        instance.resolution === "RESOLVED_CONSEQUENCE" ? consequenceKeyOf(consequence) : null,
-      indeterminateFactPaths: instance.indeterminateFactPaths,
-      unguardedNotApplicablePaths: instance.unguardedNotApplicablePaths,
-      dominates: dominatedRuleIds(instance.revision),
-      provenance: instance.provenance,
-    });
+    candidates.push(
+      slotCandidate<ReuseConsequence>(
+        instance,
+        stated.support,
+        `DOCUMENT_REUSE:${documentKey}`,
+        "DOCUMENT_REUSE",
+        { resolution: stated.consequence.resolution },
+      ),
+    );
   }
 
   const resolved = resolveSlots(candidates);
@@ -103,22 +100,16 @@ export function runReuseStage(
     return resolved;
   }
 
-  const verifications: VerificationFlag[] = [];
+  const suppressedRuleIds = new Set<string>();
   const byDocument = new Map<string, DocumentReuseAssessment>();
 
   for (const resolution of resolved.value) {
     const documentKey = resolution.slotKey.slice("DOCUMENT_REUSE:".length);
-    const entry = documentIndex.entries.find((candidate) => candidate.key === documentKey);
-    for (const verification of resolution.verifications) {
-      verifications.push(
-        toVerificationFlag(verification, {
-          documentKey: documentKey as DocumentReuseAssessment["documentKey"],
-          ...(entry === undefined ? {} : { procedureKey: entry.identity.forProcedure }),
-        }),
-      );
-    }
     for (const path of resolution.decisionRelevantFactPaths) {
       relevantPaths.add(path);
+    }
+    for (const ruleId of resolution.suppressedRuleIds) {
+      suppressedRuleIds.add(ruleId);
     }
     byDocument.set(documentKey, {
       documentKey: documentKey as DocumentReuseAssessment["documentKey"],
@@ -143,7 +134,7 @@ export function runReuseStage(
 
   return ok({
     assessments,
-    verifications,
+    suppressedRuleIds: [...suppressedRuleIds].sort(compareStrings),
     decisionRelevantFactPaths: [...relevantPaths].sort(),
   });
 }

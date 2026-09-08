@@ -5,13 +5,16 @@ import type {
   RequiredProcedureDependency,
 } from "../../domain/procedures/procedure";
 import type { RuleFactPath } from "../../rules/definitions/fact-paths";
-import type { DependencyRulePayload } from "../../rules/definitions/payloads";
-import { compareStrings, consequenceKeyOf } from "../canonicalization/ordering";
+import type { DependencyConsequence as DependencyRuleConsequence } from "../../rules/definitions/payloads";
+import { compareStrings } from "../canonicalization/ordering";
 import { ruleConfigurationError, type EngineError } from "../errors/engine-error";
 import { resolveSlots, type SlotCandidate } from "../precedence/resolve-slot";
-import type { VerificationFlag } from "../../domain/evaluation/issues";
-import { toVerificationFlag } from "../verification/flags";
-import { dominatedRuleIds, instancesOf, type StageContext } from "../evaluate/stage-context";
+import {
+  instancesOf,
+  slotCandidate,
+  statedConsequence,
+  type StageContext,
+} from "../evaluate/stage-context";
 import { classifyTargetOutcome } from "../evaluate/target-outcome";
 import { resolveProcedureTarget, type ProcedureIndex } from "../procedures/target-resolution";
 
@@ -21,7 +24,7 @@ export type DependencyStageResult = Readonly<{
   dependencies: readonly RequiredProcedureDependency[];
   /** Topological order used to validate presentation, tie-broken by key. */
   topologicalOrder: readonly string[];
-  verifications: readonly VerificationFlag[];
+  suppressedRuleIds: readonly string[];
   decisionRelevantFactPaths: readonly RuleFactPath[];
 }>;
 
@@ -39,9 +42,12 @@ export function runDependencyStage(
       continue;
     }
     // Grouped by family above; the cast records the invariant.
-    const payload = instance.revision.payload as DependencyRulePayload;
+    const stated = statedConsequence<DependencyRuleConsequence>(instance);
+    if (stated === null) {
+      continue;
+    }
     const dependent = resolveProcedureTarget(
-      payload.consequence.dependent,
+      stated.consequence.dependent,
       stage.view,
       instance.binding,
       procedureIndex,
@@ -54,13 +60,13 @@ export function runDependencyStage(
       dependent.value.state,
       instance.truth,
       instance.revision.ruleId,
-      `dependency's dependent procedure "${payload.consequence.dependent.procedureId}" (${dependent.value.state})`,
+      `dependency's dependent procedure "${stated.consequence.dependent.procedureId}" (${dependent.value.state})`,
     );
     if (!dependentDecision.ok) {
       return dependentDecision;
     }
     const dependsOn = resolveProcedureTarget(
-      payload.consequence.dependsOn,
+      stated.consequence.dependsOn,
       stage.view,
       instance.binding,
       procedureIndex,
@@ -73,7 +79,7 @@ export function runDependencyStage(
       dependsOn.value.state,
       instance.truth,
       instance.revision.ruleId,
-      `dependency's prerequisite "${payload.consequence.dependsOn.procedureId}" (${dependsOn.value.state})`,
+      `dependency's prerequisite "${stated.consequence.dependsOn.procedureId}" (${dependsOn.value.state})`,
     );
     if (!dependsOnDecision.ok) {
       return dependsOnDecision;
@@ -89,7 +95,7 @@ export function runDependencyStage(
 
     const dependentKey = (dependent.value as { key: string }).key;
     const dependsOnKey = (dependsOn.value as { key: string }).key;
-    if (dependentKey === dependsOnKey && payload.consequence.relation === "REQUIRED_BEFORE") {
+    if (dependentKey === dependsOnKey && stated.consequence.relation === "REQUIRED_BEFORE") {
       return err(
         ruleConfigurationError(
           "DEPENDENCY_SELF_LOOP",
@@ -101,24 +107,11 @@ export function runDependencyStage(
 
     const slotKey = `DEPENDENCY:${dependentKey}<-${dependsOnKey}`;
     slotMeta.set(slotKey, { dependent: dependentKey, dependsOn: dependsOnKey });
-    const consequence: DependencyConsequence = { relation: payload.consequence.relation };
-    candidates.push({
-      slotKey,
-      slotFamily: "DEPENDENCY",
-      ruleId: instance.revision.ruleId,
-      truth: instance.truth,
-      resolution: instance.resolution,
-      support: instance.support,
-      unresolvedReason: instance.unresolvedReason,
-      verification: instance.revision.verification,
-      consequence: instance.resolution === "RESOLVED_CONSEQUENCE" ? consequence : null,
-      consequenceKey:
-        instance.resolution === "RESOLVED_CONSEQUENCE" ? consequenceKeyOf(consequence) : null,
-      indeterminateFactPaths: instance.indeterminateFactPaths,
-      unguardedNotApplicablePaths: instance.unguardedNotApplicablePaths,
-      dominates: dominatedRuleIds(instance.revision),
-      provenance: instance.provenance,
-    });
+    candidates.push(
+      slotCandidate<DependencyConsequence>(instance, stated.support, slotKey, "DEPENDENCY", {
+        relation: stated.consequence.relation,
+      }),
+    );
   }
 
   const resolved = resolveSlots(candidates);
@@ -126,7 +119,7 @@ export function runDependencyStage(
     return resolved;
   }
 
-  const verifications: VerificationFlag[] = [];
+  const suppressedRuleIds = new Set<string>();
   const dependencies: RequiredProcedureDependency[] = [];
   for (const resolution of resolved.value) {
     const meta = slotMeta.get(resolution.slotKey);
@@ -134,15 +127,11 @@ export function runDependencyStage(
     if (meta === undefined) {
       continue;
     }
-    for (const verification of resolution.verifications) {
-      verifications.push(
-        toVerificationFlag(verification, {
-          procedureKey: meta.dependent as RequiredProcedure["key"],
-        }),
-      );
-    }
     for (const path of resolution.decisionRelevantFactPaths) {
       relevantPaths.add(path);
+    }
+    for (const ruleId of resolution.suppressedRuleIds) {
+      suppressedRuleIds.add(ruleId);
     }
     if (resolution.decided === null || resolution.decided.consequence.relation !== "REQUIRED_BEFORE") {
       continue;
@@ -166,7 +155,7 @@ export function runDependencyStage(
       return byDependent !== 0 ? byDependent : compareStrings(a.dependsOn as string, b.dependsOn as string);
     }),
     topologicalOrder: order.value,
-    verifications,
+    suppressedRuleIds: [...suppressedRuleIds].sort(compareStrings),
     decisionRelevantFactPaths: [...relevantPaths].sort(),
   });
 }

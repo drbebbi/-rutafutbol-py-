@@ -32,6 +32,12 @@ export function isSupportLevel(status: VerificationStatus): status is SupportLev
 /** Why a rule could not produce an authoritative consequence. */
 export type UnresolvedReason = "CONFLICTING" | "UNKNOWN" | "OFFICIAL_VERIFICATION_REQUIRED";
 
+export const UNRESOLVED_REASONS: readonly UnresolvedReason[] = [
+  "CONFLICTING",
+  "UNKNOWN",
+  "OFFICIAL_VERIFICATION_REQUIRED",
+];
+
 export function unresolvedReasonFor(status: VerificationStatus): UnresolvedReason | null {
   switch (status) {
     case "CONFIRMED":

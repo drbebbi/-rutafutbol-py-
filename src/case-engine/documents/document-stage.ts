@@ -7,20 +7,19 @@ import type {
 } from "../../domain/documents/required-document";
 import type { RuleFactPath } from "../../rules/definitions/fact-paths";
 import type {
-  DocumentFormalityPayload,
-  DocumentRequirementPayload,
+  DocumentFormalityConsequence,
+  DocumentRequirementConsequence,
   RequirementValue,
 } from "../../rules/definitions/payloads";
 import { makeRequiredDocumentKey } from "../canonicalization/keys";
-import { compareStrings, consequenceKeyOf } from "../canonicalization/ordering";
+import { compareStrings } from "../canonicalization/ordering";
 import type { EngineError } from "../errors/engine-error";
 import { resolveSlots, type SlotCandidate } from "../precedence/resolve-slot";
-import type { VerificationFlag } from "../../domain/evaluation/issues";
-import { toVerificationFlag } from "../verification/flags";
 import {
-  dominatedRuleIds,
   instancesOf,
   resolveCountryTemplate,
+  slotCandidate,
+  statedConsequence,
   type StageContext,
 } from "../evaluate/stage-context";
 import { classifyTargetOutcome } from "../evaluate/target-outcome";
@@ -32,7 +31,7 @@ type RequirementConsequence = Readonly<{ requirement: RequirementValue }>;
 export type DocumentStageResult = Readonly<{
   requiredDocuments: readonly RequiredDocument[];
   documentIndex: DocumentIndex;
-  verifications: readonly VerificationFlag[];
+  suppressedRuleIds: readonly string[];
   decisionRelevantFactPaths: readonly RuleFactPath[];
 }>;
 
@@ -59,9 +58,12 @@ export function runDocumentStage(
     }
     // Grouped by family above; the cast records the invariant rather than
     // adding an unreachable branch.
-    const payload = instance.revision.payload as DocumentRequirementPayload;
+    const stated = statedConsequence<DocumentRequirementConsequence>(instance);
+    if (stated === null) {
+      continue;
+    }
     const target = resolveProcedureTarget(
-      payload.consequence.forProcedure,
+      stated.consequence.forProcedure,
       stage.view,
       instance.binding,
       procedureIndex,
@@ -74,7 +76,7 @@ export function runDocumentStage(
       target.value.state,
       instance.truth,
       instance.revision.ruleId,
-      `document requirement targets procedure "${payload.consequence.forProcedure.procedureId}" (${target.value.state})`,
+      `document requirement targets procedure "${stated.consequence.forProcedure.procedureId}" (${target.value.state})`,
     );
     if (!decision.ok) {
       return decision;
@@ -89,7 +91,7 @@ export function runDocumentStage(
     }
 
     const country = resolveCountryTemplate(
-      payload.consequence.issuingCountry,
+      stated.consequence.issuingCountry,
       stage.view,
       instance.binding,
     );
@@ -111,9 +113,9 @@ export function runDocumentStage(
 
     const identity: RequiredDocumentIdentity = {
       forProcedure: (target.value as { key: RequiredDocumentIdentity["forProcedure"] }).key,
-      documentTypeId: payload.consequence.documentTypeId,
+      documentTypeId: stated.consequence.documentTypeId,
       issuingCountry: country.value,
-      discriminator: payload.consequence.discriminator,
+      discriminator: stated.consequence.discriminator,
     };
     const key = makeRequiredDocumentKey(identity, stage.engine.derivedKeyFormatVersion);
     if (!key.ok) {
@@ -121,24 +123,15 @@ export function runDocumentStage(
     }
     identities.set(key.value as string, identity);
 
-    const consequence: RequirementConsequence = { requirement: payload.consequence.requirement };
-    requirementCandidates.push({
-      slotKey: `DOCUMENT_REQUIREMENT:${key.value as string}`,
-      slotFamily: "DOCUMENT_REQUIREMENT",
-      ruleId: instance.revision.ruleId,
-      truth: instance.truth,
-      resolution: instance.resolution,
-      support: instance.support,
-      unresolvedReason: instance.unresolvedReason,
-      verification: instance.revision.verification,
-      consequence: instance.resolution === "RESOLVED_CONSEQUENCE" ? consequence : null,
-      consequenceKey:
-        instance.resolution === "RESOLVED_CONSEQUENCE" ? consequenceKeyOf(consequence) : null,
-      indeterminateFactPaths: instance.indeterminateFactPaths,
-      unguardedNotApplicablePaths: instance.unguardedNotApplicablePaths,
-      dominates: dominatedRuleIds(instance.revision),
-      provenance: instance.provenance,
-    });
+    requirementCandidates.push(
+      slotCandidate<RequirementConsequence>(
+        instance,
+        stated.support,
+        `DOCUMENT_REQUIREMENT:${key.value as string}`,
+        "DOCUMENT_REQUIREMENT",
+        { requirement: stated.consequence.requirement },
+      ),
+    );
   }
 
   const resolvedRequirements = resolveSlots(requirementCandidates);
@@ -147,7 +140,7 @@ export function runDocumentStage(
   }
 
   const indexEntries: DocumentIndexEntry[] = [];
-  const verifications: VerificationFlag[] = [];
+  const suppressedRuleIds = new Set<string>();
   const relevantPaths = new Set<RuleFactPath>(floatingPaths);
   const decided = new Map<
     string,
@@ -161,16 +154,11 @@ export function runDocumentStage(
     if (identity === undefined) {
       continue;
     }
-    for (const verification of resolution.verifications) {
-      verifications.push(
-        toVerificationFlag(verification, {
-          documentKey: key as RequiredDocument["key"],
-          procedureKey: identity.forProcedure,
-        }),
-      );
-    }
     for (const path of resolution.decisionRelevantFactPaths) {
       relevantPaths.add(path);
+    }
+    for (const ruleId of resolution.suppressedRuleIds) {
+      suppressedRuleIds.add(ruleId);
     }
     if (resolution.decided === null) {
       continue;
@@ -198,9 +186,12 @@ export function runDocumentStage(
     if (instance.truth === "FALSE") {
       continue;
     }
-    const payload = instance.revision.payload as DocumentFormalityPayload;
+    const stated = statedConsequence<DocumentFormalityConsequence>(instance);
+    if (stated === null) {
+      continue;
+    }
     const target = resolveDocumentTarget(
-      payload.consequence.forDocument,
+      stated.consequence.forDocument,
       stage.view,
       instance.binding,
       procedureIndex,
@@ -214,7 +205,7 @@ export function runDocumentStage(
       target.value.state,
       instance.truth,
       instance.revision.ruleId,
-      `formality targets document "${payload.consequence.forDocument.documentTypeId}" (${target.value.state})`,
+      `formality targets document "${stated.consequence.forDocument.documentTypeId}" (${target.value.state})`,
     );
     if (!decision.ok) {
       return decision;
@@ -228,29 +219,16 @@ export function runDocumentStage(
       continue;
     }
     const documentKey = (target.value as { key: string }).key;
-    const slotKey = `FORMALITY:${documentKey}:${payload.consequence.formalityCode as string}`;
+    const slotKey = `FORMALITY:${documentKey}:${stated.consequence.formalityCode as string}`;
     formalitySlotMeta.set(slotKey, {
       documentKey,
-      formalityCode: payload.consequence.formalityCode as string,
+      formalityCode: stated.consequence.formalityCode as string,
     });
-    const consequence: RequirementConsequence = { requirement: payload.consequence.requirement };
-    formalityCandidates.push({
-      slotKey,
-      slotFamily: "FORMALITY",
-      ruleId: instance.revision.ruleId,
-      truth: instance.truth,
-      resolution: instance.resolution,
-      support: instance.support,
-      unresolvedReason: instance.unresolvedReason,
-      verification: instance.revision.verification,
-      consequence: instance.resolution === "RESOLVED_CONSEQUENCE" ? consequence : null,
-      consequenceKey:
-        instance.resolution === "RESOLVED_CONSEQUENCE" ? consequenceKeyOf(consequence) : null,
-      indeterminateFactPaths: instance.indeterminateFactPaths,
-      unguardedNotApplicablePaths: instance.unguardedNotApplicablePaths,
-      dominates: dominatedRuleIds(instance.revision),
-      provenance: instance.provenance,
-    });
+    formalityCandidates.push(
+      slotCandidate<RequirementConsequence>(instance, stated.support, slotKey, "FORMALITY", {
+        requirement: stated.consequence.requirement,
+      }),
+    );
   }
 
   const resolvedFormalities = resolveSlots(formalityCandidates);
@@ -265,17 +243,11 @@ export function runDocumentStage(
     if (meta === undefined) {
       continue;
     }
-    const formalityIdentity = identities.get(meta.documentKey);
-    for (const verification of resolution.verifications) {
-      verifications.push(
-        toVerificationFlag(verification, {
-          documentKey: meta.documentKey as RequiredDocument["key"],
-          ...(formalityIdentity === undefined ? {} : { procedureKey: formalityIdentity.forProcedure }),
-        }),
-      );
-    }
     for (const path of resolution.decisionRelevantFactPaths) {
       relevantPaths.add(path);
+    }
+    for (const ruleId of resolution.suppressedRuleIds) {
+      suppressedRuleIds.add(ruleId);
     }
     if (resolution.decided === null || resolution.decided.consequence.requirement !== "REQUIRED") {
       continue;
@@ -304,7 +276,7 @@ export function runDocumentStage(
   return ok({
     requiredDocuments,
     documentIndex,
-    verifications,
+    suppressedRuleIds: [...suppressedRuleIds].sort(compareStrings),
     decisionRelevantFactPaths: [...relevantPaths].sort(),
   });
 }

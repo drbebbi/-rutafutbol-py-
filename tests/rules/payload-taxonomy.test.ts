@@ -47,13 +47,18 @@ const payloads: Readonly<Record<string, RulePayload>> = {
     family: "SPECIAL_CASE",
     scope: "CASE",
     condition: alwaysTrue,
-    consequence: { specialCaseCode: "PARAGUAYAN_SPOUSE" },
+    precedence: [],
+    resolution: { state: "RESOLVED", consequence: { specialCaseCode: "PARAGUAYAN_SPOUSE" } },
   },
   TIMELINE: {
     family: "TIMELINE",
     scope: "CASE",
     condition: alwaysTrue,
-    consequence: { code: "PROCESSING_TIME_INDICATION", severity: "INFO", qualifier: null },
+    precedence: [],
+    resolution: {
+      state: "RESOLVED",
+      consequence: { code: "PROCESSING_TIME_INDICATION", severity: "INFO", qualifier: null },
+    },
   },
 };
 

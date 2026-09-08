@@ -33,7 +33,7 @@ const SYNTHETIC_BUNDLE = {
       "verificationStatus": "CONFIRMED",
       "validFrom": "2000-01-01",
       "validUntil": null,
-      "payloadSchemaVersion": "rule-payload@1.0",
+      "payloadSchemaVersion": "rule-payload@2.0",
       "payload": {
         "family": "CLASSIFICATION",
         "scope": "CASE",
@@ -46,19 +46,22 @@ const SYNTHETIC_BUNDLE = {
             "value": "NONE"
           }
         },
-        "consequence": {
-          "kind": "CASE_TYPE",
-          "caseType": "STANDARD_FIRST_CEDULA_FROM_NONE"
+        "precedence": [],
+        "subject": "CASE_TYPE",
+        "resolution": {
+          "state": "RESOLVED",
+          "consequence": {
+            "kind": "CASE_TYPE",
+            "caseType": "STANDARD_FIRST_CEDULA_FROM_NONE"
+          }
         }
       },
-      "precedence": [],
       "evidence": [
         {
           "sourceRevisionId": "00000000-0000-4000-8000-000000002329",
           "citationDetail": "synthetic"
         }
-      ],
-      "verification": null
+      ]
     },
     {
       "ruleRevisionId": "00000000-0000-4000-8000-000000000002",
@@ -70,7 +73,7 @@ const SYNTHETIC_BUNDLE = {
       "verificationStatus": "CONFIRMED",
       "validFrom": "2000-01-01",
       "validUntil": null,
-      "payloadSchemaVersion": "rule-payload@1.0",
+      "payloadSchemaVersion": "rule-payload@2.0",
       "payload": {
         "family": "CLASSIFICATION",
         "scope": "CASE",
@@ -83,19 +86,22 @@ const SYNTHETIC_BUNDLE = {
             "value": "TEMPORAL"
           }
         },
-        "consequence": {
-          "kind": "CASE_TYPE",
-          "caseType": "TEMPORAL_IDENTIFICACIONES_VERIFICATION_REQUIRED"
+        "precedence": [],
+        "subject": "CASE_TYPE",
+        "resolution": {
+          "state": "RESOLVED",
+          "consequence": {
+            "kind": "CASE_TYPE",
+            "caseType": "TEMPORAL_IDENTIFICACIONES_VERIFICATION_REQUIRED"
+          }
         }
       },
-      "precedence": [],
       "evidence": [
         {
           "sourceRevisionId": "00000000-0000-4000-8000-000000002329",
           "citationDetail": "synthetic"
         }
-      ],
-      "verification": null
+      ]
     },
     {
       "ruleRevisionId": "00000000-0000-4000-8000-000000000003",
@@ -107,7 +113,7 @@ const SYNTHETIC_BUNDLE = {
       "verificationStatus": "CONFIRMED",
       "validFrom": "2000-01-01",
       "validUntil": null,
-      "payloadSchemaVersion": "rule-payload@1.0",
+      "payloadSchemaVersion": "rule-payload@2.0",
       "payload": {
         "family": "CLASSIFICATION",
         "scope": "CASE",
@@ -120,19 +126,22 @@ const SYNTHETIC_BUNDLE = {
             "value": "TEMPORAL"
           }
         },
-        "consequence": {
-          "kind": "RESIDENCE_CLASSIFICATION",
-          "classification": "TEMPORAL"
+        "precedence": [],
+        "subject": "RESIDENCE_CLASSIFICATION",
+        "resolution": {
+          "state": "RESOLVED",
+          "consequence": {
+            "kind": "RESIDENCE_CLASSIFICATION",
+            "classification": "TEMPORAL"
+          }
         }
       },
-      "precedence": [],
       "evidence": [
         {
           "sourceRevisionId": "00000000-0000-4000-8000-000000002329",
           "citationDetail": "synthetic"
         }
-      ],
-      "verification": null
+      ]
     },
     {
       "ruleRevisionId": "00000000-0000-4000-8000-000000000004",
@@ -144,7 +153,7 @@ const SYNTHETIC_BUNDLE = {
       "verificationStatus": "CONFIRMED",
       "validFrom": "2000-01-01",
       "validUntil": null,
-      "payloadSchemaVersion": "rule-payload@1.0",
+      "payloadSchemaVersion": "rule-payload@2.0",
       "payload": {
         "family": "CLASSIFICATION",
         "scope": "CASE",
@@ -157,19 +166,22 @@ const SYNTHETIC_BUNDLE = {
             "value": "NONE"
           }
         },
-        "consequence": {
-          "kind": "RESIDENCE_CLASSIFICATION",
-          "classification": "NONE"
+        "precedence": [],
+        "subject": "RESIDENCE_CLASSIFICATION",
+        "resolution": {
+          "state": "RESOLVED",
+          "consequence": {
+            "kind": "RESIDENCE_CLASSIFICATION",
+            "classification": "NONE"
+          }
         }
       },
-      "precedence": [],
       "evidence": [
         {
           "sourceRevisionId": "00000000-0000-4000-8000-000000002329",
           "citationDetail": "synthetic"
         }
-      ],
-      "verification": null
+      ]
     },
     {
       "ruleRevisionId": "00000000-0000-4000-8000-000000000005",
@@ -181,7 +193,7 @@ const SYNTHETIC_BUNDLE = {
       "verificationStatus": "CONFIRMED",
       "validFrom": "2000-01-01",
       "validUntil": null,
-      "payloadSchemaVersion": "rule-payload@1.0",
+      "payloadSchemaVersion": "rule-payload@2.0",
       "payload": {
         "family": "VISA",
         "scope": "CASE",
@@ -194,19 +206,21 @@ const SYNTHETIC_BUNDLE = {
             "value": "NONE"
           }
         },
-        "consequence": {
-          "purposeCode": "syn.residence-purpose",
-          "requirement": "REQUIRED"
+        "precedence": [],
+        "resolution": {
+          "state": "RESOLVED",
+          "consequence": {
+            "purposeCode": "syn.residence-purpose",
+            "requirement": "REQUIRED"
+          }
         }
       },
-      "precedence": [],
       "evidence": [
         {
           "sourceRevisionId": "00000000-0000-4000-8000-000000002329",
           "citationDetail": "synthetic"
         }
-      ],
-      "verification": null
+      ]
     },
     {
       "ruleRevisionId": "00000000-0000-4000-8000-000000000006",
@@ -218,7 +232,7 @@ const SYNTHETIC_BUNDLE = {
       "verificationStatus": "CONFIRMED",
       "validFrom": "2000-01-01",
       "validUntil": null,
-      "payloadSchemaVersion": "rule-payload@1.0",
+      "payloadSchemaVersion": "rule-payload@2.0",
       "payload": {
         "family": "PROCEDURE",
         "scope": "CASE",
@@ -231,21 +245,23 @@ const SYNTHETIC_BUNDLE = {
             "value": "NONE"
           }
         },
-        "consequence": {
-          "procedureId": "syn.residencia-temporal",
-          "parameters": [],
-          "discriminator": null,
-          "requirement": "REQUIRED"
+        "precedence": [],
+        "resolution": {
+          "state": "RESOLVED",
+          "consequence": {
+            "procedureId": "syn.residencia-temporal",
+            "parameters": [],
+            "discriminator": null,
+            "requirement": "REQUIRED"
+          }
         }
       },
-      "precedence": [],
       "evidence": [
         {
           "sourceRevisionId": "00000000-0000-4000-8000-000000002329",
           "citationDetail": "synthetic"
         }
-      ],
-      "verification": null
+      ]
     },
     {
       "ruleRevisionId": "00000000-0000-4000-8000-000000000007",
@@ -257,7 +273,7 @@ const SYNTHETIC_BUNDLE = {
       "verificationStatus": "CONFIRMED",
       "validFrom": "2000-01-01",
       "validUntil": null,
-      "payloadSchemaVersion": "rule-payload@1.0",
+      "payloadSchemaVersion": "rule-payload@2.0",
       "payload": {
         "family": "PROCEDURE",
         "scope": "CASE",
@@ -265,21 +281,23 @@ const SYNTHETIC_BUNDLE = {
           "kind": "CONSTANT",
           "value": "TRUE"
         },
-        "consequence": {
-          "procedureId": "syn.cedula-first",
-          "parameters": [],
-          "discriminator": null,
-          "requirement": "REQUIRED"
+        "precedence": [],
+        "resolution": {
+          "state": "RESOLVED",
+          "consequence": {
+            "procedureId": "syn.cedula-first",
+            "parameters": [],
+            "discriminator": null,
+            "requirement": "REQUIRED"
+          }
         }
       },
-      "precedence": [],
       "evidence": [
         {
           "sourceRevisionId": "00000000-0000-4000-8000-000000002329",
           "citationDetail": "synthetic"
         }
-      ],
-      "verification": null
+      ]
     },
     {
       "ruleRevisionId": "00000000-0000-4000-8000-000000000008",
@@ -291,7 +309,7 @@ const SYNTHETIC_BUNDLE = {
       "verificationStatus": "CONFIRMED",
       "validFrom": "2000-01-01",
       "validUntil": null,
-      "payloadSchemaVersion": "rule-payload@1.0",
+      "payloadSchemaVersion": "rule-payload@2.0",
       "payload": {
         "family": "DEPENDENCY",
         "scope": "CASE",
@@ -304,28 +322,30 @@ const SYNTHETIC_BUNDLE = {
             "value": "NONE"
           }
         },
-        "consequence": {
-          "dependent": {
-            "procedureId": "syn.cedula-first",
-            "parameters": [],
-            "discriminator": null
-          },
-          "dependsOn": {
-            "procedureId": "syn.residencia-temporal",
-            "parameters": [],
-            "discriminator": null
-          },
-          "relation": "REQUIRED_BEFORE"
+        "precedence": [],
+        "resolution": {
+          "state": "RESOLVED",
+          "consequence": {
+            "dependent": {
+              "procedureId": "syn.cedula-first",
+              "parameters": [],
+              "discriminator": null
+            },
+            "dependsOn": {
+              "procedureId": "syn.residencia-temporal",
+              "parameters": [],
+              "discriminator": null
+            },
+            "relation": "REQUIRED_BEFORE"
+          }
         }
       },
-      "precedence": [],
       "evidence": [
         {
           "sourceRevisionId": "00000000-0000-4000-8000-000000002329",
           "citationDetail": "synthetic"
         }
-      ],
-      "verification": null
+      ]
     },
     {
       "ruleRevisionId": "00000000-0000-4000-8000-000000000009",
@@ -337,7 +357,7 @@ const SYNTHETIC_BUNDLE = {
       "verificationStatus": "CONFIRMED",
       "validFrom": "2000-01-01",
       "validUntil": null,
-      "payloadSchemaVersion": "rule-payload@1.0",
+      "payloadSchemaVersion": "rule-payload@2.0",
       "payload": {
         "family": "DOCUMENT_REQUIREMENT",
         "scope": "CASE",
@@ -345,26 +365,28 @@ const SYNTHETIC_BUNDLE = {
           "kind": "CONSTANT",
           "value": "TRUE"
         },
-        "consequence": {
-          "forProcedure": {
-            "procedureId": "syn.cedula-first",
-            "parameters": [],
-            "discriminator": null
-          },
-          "documentTypeId": "syn.birth-certificate",
-          "issuingCountry": null,
-          "discriminator": null,
-          "requirement": "REQUIRED"
+        "precedence": [],
+        "resolution": {
+          "state": "RESOLVED",
+          "consequence": {
+            "forProcedure": {
+              "procedureId": "syn.cedula-first",
+              "parameters": [],
+              "discriminator": null
+            },
+            "documentTypeId": "syn.birth-certificate",
+            "issuingCountry": null,
+            "discriminator": null,
+            "requirement": "REQUIRED"
+          }
         }
       },
-      "precedence": [],
       "evidence": [
         {
           "sourceRevisionId": "00000000-0000-4000-8000-000000002329",
           "citationDetail": "synthetic"
         }
-      ],
-      "verification": null
+      ]
     },
     {
       "ruleRevisionId": "00000000-0000-4000-8000-00000000000a",
@@ -376,7 +398,7 @@ const SYNTHETIC_BUNDLE = {
       "verificationStatus": "CONFIRMED",
       "validFrom": "2000-01-01",
       "validUntil": null,
-      "payloadSchemaVersion": "rule-payload@1.0",
+      "payloadSchemaVersion": "rule-payload@2.0",
       "payload": {
         "family": "DOCUMENT_FORMALITY",
         "scope": "CASE",
@@ -384,29 +406,31 @@ const SYNTHETIC_BUNDLE = {
           "kind": "CONSTANT",
           "value": "TRUE"
         },
-        "consequence": {
-          "forDocument": {
-            "forProcedure": {
-              "procedureId": "syn.cedula-first",
-              "parameters": [],
+        "precedence": [],
+        "resolution": {
+          "state": "RESOLVED",
+          "consequence": {
+            "forDocument": {
+              "forProcedure": {
+                "procedureId": "syn.cedula-first",
+                "parameters": [],
+                "discriminator": null
+              },
+              "documentTypeId": "syn.birth-certificate",
+              "issuingCountry": null,
               "discriminator": null
             },
-            "documentTypeId": "syn.birth-certificate",
-            "issuingCountry": null,
-            "discriminator": null
-          },
-          "formalityCode": "syn.apostille",
-          "requirement": "REQUIRED"
+            "formalityCode": "syn.apostille",
+            "requirement": "REQUIRED"
+          }
         }
       },
-      "precedence": [],
       "evidence": [
         {
           "sourceRevisionId": "00000000-0000-4000-8000-000000002329",
           "citationDetail": "synthetic"
         }
-      ],
-      "verification": null
+      ]
     },
     {
       "ruleRevisionId": "00000000-0000-4000-8000-00000000000b",
@@ -418,7 +442,7 @@ const SYNTHETIC_BUNDLE = {
       "verificationStatus": "CONFIRMED",
       "validFrom": "2000-01-01",
       "validUntil": null,
-      "payloadSchemaVersion": "rule-payload@1.0",
+      "payloadSchemaVersion": "rule-payload@2.0",
       "payload": {
         "family": "DOCUMENT_REUSE",
         "scope": "CASE",
@@ -426,28 +450,30 @@ const SYNTHETIC_BUNDLE = {
           "kind": "CONSTANT",
           "value": "TRUE"
         },
-        "consequence": {
-          "forDocument": {
-            "forProcedure": {
-              "procedureId": "syn.cedula-first",
-              "parameters": [],
+        "precedence": [],
+        "resolution": {
+          "state": "RESOLVED",
+          "consequence": {
+            "forDocument": {
+              "forProcedure": {
+                "procedureId": "syn.cedula-first",
+                "parameters": [],
+                "discriminator": null
+              },
+              "documentTypeId": "syn.birth-certificate",
+              "issuingCountry": null,
               "discriminator": null
             },
-            "documentTypeId": "syn.birth-certificate",
-            "issuingCountry": null,
-            "discriminator": null
-          },
-          "resolution": "REUSABLE_CONFIRMED"
+            "resolution": "REUSABLE_CONFIRMED"
+          }
         }
       },
-      "precedence": [],
       "evidence": [
         {
           "sourceRevisionId": "00000000-0000-4000-8000-000000002329",
           "citationDetail": "synthetic"
         }
-      ],
-      "verification": null
+      ]
     },
     {
       "ruleRevisionId": "00000000-0000-4000-8000-00000000000c",
@@ -459,7 +485,7 @@ const SYNTHETIC_BUNDLE = {
       "verificationStatus": "CONFIRMED",
       "validFrom": "2000-01-01",
       "validUntil": null,
-      "payloadSchemaVersion": "rule-payload@1.0",
+      "payloadSchemaVersion": "rule-payload@2.0",
       "payload": {
         "family": "FEE",
         "scope": "CASE",
@@ -467,31 +493,33 @@ const SYNTHETIC_BUNDLE = {
           "kind": "CONSTANT",
           "value": "TRUE"
         },
-        "consequence": {
-          "forProcedure": {
-            "procedureId": "syn.cedula-first",
-            "parameters": [],
-            "discriminator": null
-          },
-          "componentCode": "syn.official",
-          "feeType": "FIXED_AMOUNT",
-          "formula": {
-            "kind": "FIXED",
-            "amount": {
-              "amountMinorUnits": 8500,
-              "currency": "PYG"
+        "precedence": [],
+        "resolution": {
+          "state": "RESOLVED",
+          "consequence": {
+            "forProcedure": {
+              "procedureId": "syn.cedula-first",
+              "parameters": [],
+              "discriminator": null
+            },
+            "componentCode": "syn.official",
+            "feeType": "FIXED_AMOUNT",
+            "formula": {
+              "kind": "FIXED",
+              "amount": {
+                "amountMinorUnits": 8500,
+                "currency": "PYG"
+              }
             }
           }
         }
       },
-      "precedence": [],
       "evidence": [
         {
           "sourceRevisionId": "00000000-0000-4000-8000-000000002329",
           "citationDetail": "synthetic"
         }
-      ],
-      "verification": null
+      ]
     },
     {
       "ruleRevisionId": "00000000-0000-4000-8000-00000000000d",
@@ -503,7 +531,7 @@ const SYNTHETIC_BUNDLE = {
       "verificationStatus": "CONFIRMED",
       "validFrom": "2000-01-01",
       "validUntil": null,
-      "payloadSchemaVersion": "rule-payload@1.0",
+      "payloadSchemaVersion": "rule-payload@2.0",
       "payload": {
         "family": "FEE",
         "scope": "CASE",
@@ -516,29 +544,31 @@ const SYNTHETIC_BUNDLE = {
             "value": "NONE"
           }
         },
-        "consequence": {
-          "forProcedure": {
-            "procedureId": "syn.residencia-temporal",
-            "parameters": [],
-            "discriminator": null
-          },
-          "componentCode": "syn.official",
-          "feeType": "INDEXED_AMOUNT",
-          "formula": {
-            "kind": "INDEXED",
-            "multiplier": 25,
-            "feeIndexId": "syn.jornal"
+        "precedence": [],
+        "resolution": {
+          "state": "RESOLVED",
+          "consequence": {
+            "forProcedure": {
+              "procedureId": "syn.residencia-temporal",
+              "parameters": [],
+              "discriminator": null
+            },
+            "componentCode": "syn.official",
+            "feeType": "INDEXED_AMOUNT",
+            "formula": {
+              "kind": "INDEXED",
+              "multiplier": 25,
+              "feeIndexId": "syn.jornal"
+            }
           }
         }
       },
-      "precedence": [],
       "evidence": [
         {
           "sourceRevisionId": "00000000-0000-4000-8000-000000002329",
           "citationDetail": "synthetic"
         }
-      ],
-      "verification": null
+      ]
     },
     {
       "ruleRevisionId": "00000000-0000-4000-8000-00000000000e",
@@ -550,7 +580,7 @@ const SYNTHETIC_BUNDLE = {
       "verificationStatus": "CONFIRMED",
       "validFrom": "2000-01-01",
       "validUntil": null,
-      "payloadSchemaVersion": "rule-payload@1.0",
+      "payloadSchemaVersion": "rule-payload@2.0",
       "payload": {
         "family": "WARNING",
         "scope": "CASE",
@@ -558,20 +588,22 @@ const SYNTHETIC_BUNDLE = {
           "kind": "CONSTANT",
           "value": "TRUE"
         },
-        "consequence": {
-          "code": "PROCESSING_TIME_INDICATION",
-          "severity": "INFO",
-          "qualifier": "syn-indication"
+        "precedence": [],
+        "resolution": {
+          "state": "RESOLVED",
+          "consequence": {
+            "code": "PROCESSING_TIME_INDICATION",
+            "severity": "INFO",
+            "qualifier": "syn-indication"
+          }
         }
       },
-      "precedence": [],
       "evidence": [
         {
           "sourceRevisionId": "00000000-0000-4000-8000-000000002329",
           "citationDetail": "synthetic"
         }
-      ],
-      "verification": null
+      ]
     },
     {
       "ruleRevisionId": "00000000-0000-4000-8000-00000000000f",
@@ -583,7 +615,7 @@ const SYNTHETIC_BUNDLE = {
       "verificationStatus": "CONFLICTING",
       "validFrom": "2000-01-01",
       "validUntil": null,
-      "payloadSchemaVersion": "rule-payload@1.0",
+      "payloadSchemaVersion": "rule-payload@2.0",
       "payload": {
         "family": "DOCUMENT_REQUIREMENT",
         "scope": "CASE",
@@ -596,24 +628,24 @@ const SYNTHETIC_BUNDLE = {
             "value": "TEMPORAL"
           }
         },
-        "consequence": {
-          "forProcedure": {
-            "procedureId": "syn.cedula-first",
-            "parameters": [],
-            "discriminator": null
-          },
-          "documentTypeId": "syn.residence-evidence-document",
-          "issuingCountry": null,
-          "discriminator": null,
-          "requirement": "REQUIRED"
+        "precedence": [],
+        "resolution": {
+          "state": "UNRESOLVED",
+          "reason": "CONFLICTING",
+          "verification": {
+            "code": "TEMPORAL_IDENTIFICACIONES_DOCUMENT_SET",
+            "target": {
+              "kind": "PROCEDURE",
+              "targetProcedure": {
+                "procedureId": "syn.cedula-first",
+                "parameters": [],
+                "discriminator": null
+              }
+            }
+          }
         }
       },
-      "precedence": [],
-      "evidence": [],
-      "verification": {
-        "code": "TEMPORAL_IDENTIFICACIONES_DOCUMENT_SET",
-        "targetKind": "PROCEDURE"
-      }
+      "evidence": []
     }
   ],
   "evidence": [

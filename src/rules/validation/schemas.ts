@@ -4,15 +4,15 @@ import { KNOWLEDGE_STATES } from "../../domain/case/knowledge";
 import { CASE_TYPES } from "../../domain/case/classification";
 import { REPORTED_RESIDENCE_TYPES } from "../../domain/residence/residence";
 import { PUBLICATION_STATUSES } from "../../domain/rules/publication";
-import { VERIFICATION_STATUSES } from "../../domain/rules/verification";
+import { UNRESOLVED_REASONS, VERIFICATION_STATUSES } from "../../domain/rules/verification";
 import { FEE_TYPES } from "../../domain/fees/fee";
 import { VERIFICATION_CODES, WARNING_CODES } from "../../domain/evaluation/issues";
 import { COMPARE_OPERATORS, DATE_COMPARE_OPERATORS, TRUTH_VALUES } from "../definitions/ast";
 import type { CalendarPeriod, DateExpression, RuleConditionNode } from "../definitions/ast";
 import { ALL_RULE_FACT_PATHS } from "../definitions/fact-paths";
 import { RULE_SCOPES } from "../definitions/scopes";
+import { PRECEDENCE_RELATIONS, SPECIAL_CASE_CODES } from "../definitions/payloads";
 import type { RulePayload } from "../definitions/payloads";
-import { PRECEDENCE_RELATIONS } from "../definitions/rule-revision";
 import type { RuleRevision } from "../definitions/rule-revision";
 import type { EvaluationBundleContent } from "../bundle/bundle-content";
 
@@ -144,129 +144,187 @@ const moneySchema = z.object({
   currency: currencySchema<never>(),
 });
 
+const verificationTargetTemplateSchema = z.union([
+  z.object({ kind: z.literal("CASE") }),
+  z.object({ kind: z.literal("PROCEDURE"), targetProcedure: procedureTargetSelectorSchema }),
+  z.object({ kind: z.literal("DOCUMENT"), targetDocument: documentTargetSelectorSchema }),
+  z.object({ kind: z.literal("VISA_PURPOSE"), purposeCode: slugSchema<never>() }),
+  z.object({
+    kind: z.literal("FEE_COMPONENT"),
+    targetProcedure: procedureTargetSelectorSchema,
+    componentCode: slugSchema<never>(),
+  }),
+]);
+
+const unresolvedRuleVerificationSchema = z.object({
+  code: z.enum(VERIFICATION_CODES as unknown as [string, ...string[]]),
+  target: verificationTargetTemplateSchema,
+});
+
 const payloadBase = {
   scope: z.enum(RULE_SCOPES as unknown as [string, ...string[]]),
   condition: ruleConditionNodeSchema,
+  precedence: z
+    .array(
+      z.object({
+        relation: z.enum(PRECEDENCE_RELATIONS as unknown as [string, ...string[]]),
+        overRuleId: slugSchema<never>(),
+      }),
+    )
+    .max(32),
 };
+
+/**
+ * A rule either states a consequence or asks for verification.
+ *
+ * The union is closed at the wire level too: there is no shape in which a
+ * payload can carry both, so a malformed rule that tried to smuggle a
+ * consequence past an UNRESOLVED state is rejected before it reaches the
+ * domain.
+ */
+function resolutionSchema<T extends z.ZodTypeAny>(consequence: T) {
+  return z.union([
+    z.object({ state: z.literal("RESOLVED"), consequence }),
+    z.object({
+      state: z.literal("UNRESOLVED"),
+      reason: z.enum(UNRESOLVED_REASONS as unknown as [string, ...string[]]),
+      verification: unresolvedRuleVerificationSchema,
+    }),
+  ]);
+}
 
 export const rulePayloadSchema: z.ZodType<RulePayload> = z.union([
   z.object({
     ...payloadBase,
     family: z.literal("CLASSIFICATION"),
-    consequence: z.union([
-      z.object({
-        kind: z.literal("CASE_TYPE"),
-        caseType: z.enum(CASE_TYPES as unknown as [string, ...string[]]),
-      }),
-      z.object({
-        kind: z.literal("RESIDENCE_CLASSIFICATION"),
-        classification: z.enum(REPORTED_RESIDENCE_TYPES as unknown as [string, ...string[]]),
-      }),
-    ]),
+    subject: z.enum(["CASE_TYPE", "RESIDENCE_CLASSIFICATION"]),
+    resolution: resolutionSchema(
+      z.union([
+        z.object({
+          kind: z.literal("CASE_TYPE"),
+          caseType: z.enum(CASE_TYPES as unknown as [string, ...string[]]),
+        }),
+        z.object({
+          kind: z.literal("RESIDENCE_CLASSIFICATION"),
+          classification: z.enum(REPORTED_RESIDENCE_TYPES as unknown as [string, ...string[]]),
+        }),
+      ]),
+    ),
   }),
   z.object({
     ...payloadBase,
     family: z.literal("VISA"),
-    consequence: z.object({ purposeCode: slugSchema<never>(), requirement: requirementSchema }),
+    resolution: resolutionSchema(
+      z.object({ purposeCode: slugSchema<never>(), requirement: requirementSchema }),
+    ),
   }),
   z.object({
     ...payloadBase,
     family: z.literal("PROCEDURE"),
-    consequence: z.object({
-      procedureId: slugSchema<never>(),
-      parameters: z.array(procedureParameterTemplateSchema).max(16),
-      discriminator: discriminatorSchema,
-      requirement: requirementSchema,
-    }),
+    resolution: resolutionSchema(
+      z.object({
+        procedureId: slugSchema<never>(),
+        parameters: z.array(procedureParameterTemplateSchema).max(16),
+        discriminator: discriminatorSchema,
+        requirement: requirementSchema,
+      }),
+    ),
   }),
   z.object({
     ...payloadBase,
     family: z.literal("DOCUMENT_REQUIREMENT"),
-    consequence: z.object({
-      forProcedure: procedureTargetSelectorSchema,
-      documentTypeId: slugSchema<never>(),
-      issuingCountry: countryTemplateSchema.nullable(),
-      discriminator: discriminatorSchema,
-      requirement: requirementSchema,
-    }),
+    resolution: resolutionSchema(
+      z.object({
+        forProcedure: procedureTargetSelectorSchema,
+        documentTypeId: slugSchema<never>(),
+        issuingCountry: countryTemplateSchema.nullable(),
+        discriminator: discriminatorSchema,
+        requirement: requirementSchema,
+      }),
+    ),
   }),
   z.object({
     ...payloadBase,
     family: z.literal("DOCUMENT_FORMALITY"),
-    consequence: z.object({
-      forDocument: documentTargetSelectorSchema,
-      formalityCode: slugSchema<never>(),
-      requirement: requirementSchema,
-    }),
+    resolution: resolutionSchema(
+      z.object({
+        forDocument: documentTargetSelectorSchema,
+        formalityCode: slugSchema<never>(),
+        requirement: requirementSchema,
+      }),
+    ),
   }),
   z.object({
     ...payloadBase,
     family: z.literal("DOCUMENT_REUSE"),
-    consequence: z.object({
-      forDocument: documentTargetSelectorSchema,
-      resolution: z.enum(["REUSABLE_CONFIRMED", "REUSE_NOT_ALLOWED", "REISSUE_REQUIRED"]),
-    }),
+    resolution: resolutionSchema(
+      z.object({
+        forDocument: documentTargetSelectorSchema,
+        resolution: z.enum(["REUSABLE_CONFIRMED", "REUSE_NOT_ALLOWED", "REISSUE_REQUIRED"]),
+      }),
+    ),
   }),
   z.object({
     ...payloadBase,
     family: z.literal("DEPENDENCY"),
-    consequence: z.object({
-      dependent: procedureTargetSelectorSchema,
-      dependsOn: procedureTargetSelectorSchema,
-      relation: z.enum(["REQUIRED_BEFORE", "NOT_REQUIRED_BEFORE"]),
-    }),
+    resolution: resolutionSchema(
+      z.object({
+        dependent: procedureTargetSelectorSchema,
+        dependsOn: procedureTargetSelectorSchema,
+        relation: z.enum(["REQUIRED_BEFORE", "NOT_REQUIRED_BEFORE"]),
+      }),
+    ),
   }),
   z.object({
     ...payloadBase,
     family: z.literal("FEE"),
-    consequence: z.object({
-      forProcedure: procedureTargetSelectorSchema,
-      componentCode: slugSchema<never>(),
-      feeType: z.enum(FEE_TYPES as unknown as [string, ...string[]]),
-      formula: z.union([
-        z.object({ kind: z.literal("FIXED"), amount: moneySchema }),
-        z.object({
-          kind: z.literal("INDEXED"),
-          multiplier: z.int().min(0).max(1000000),
-          feeIndexId: slugSchema<never>(),
-        }),
-        z.object({ kind: z.literal("EXTERNAL_VARIABLE"), costCode: slugSchema<never>() }),
-      ]),
-    }),
+    resolution: resolutionSchema(
+      z.object({
+        forProcedure: procedureTargetSelectorSchema,
+        componentCode: slugSchema<never>(),
+        feeType: z.enum(FEE_TYPES as unknown as [string, ...string[]]),
+        formula: z.union([
+          z.object({ kind: z.literal("FIXED"), amount: moneySchema }),
+          z.object({
+            kind: z.literal("INDEXED"),
+            multiplier: z.int().min(0).max(1000000),
+            feeIndexId: slugSchema<never>(),
+          }),
+          z.object({ kind: z.literal("EXTERNAL_VARIABLE"), costCode: slugSchema<never>() }),
+        ]),
+      }),
+    ),
   }),
   z.object({
     ...payloadBase,
     family: z.literal("WARNING"),
-    consequence: z.object({
-      code: z.enum(WARNING_CODES as unknown as [string, ...string[]]),
-      severity: z.enum(["INFO", "CAUTION"]),
-      qualifier: z.string().max(128).nullable(),
-    }),
+    resolution: resolutionSchema(
+      z.object({
+        code: z.enum(WARNING_CODES as unknown as [string, ...string[]]),
+        severity: z.enum(["INFO", "CAUTION"]),
+        qualifier: z.string().max(128).nullable(),
+      }),
+    ),
   }),
   z.object({
     ...payloadBase,
     family: z.literal("SPECIAL_CASE"),
-    consequence: z.object({
-      specialCaseCode: z.enum([
-        "PARAGUAYAN_CITIZENSHIP",
-        "MINOR",
-        "PARAGUAYAN_PARENT",
-        "PARAGUAYAN_SPOUSE",
-        "REPATRIADO_FAMILY",
-        "DIPLOMATIC",
-        "PROTECTION",
-        "INVESTOR",
-      ]),
-    }),
+    resolution: resolutionSchema(
+      z.object({
+        specialCaseCode: z.enum(SPECIAL_CASE_CODES as unknown as [string, ...string[]]),
+      }),
+    ),
   }),
   z.object({
     ...payloadBase,
     family: z.literal("TIMELINE"),
-    consequence: z.object({
-      code: z.enum(WARNING_CODES as unknown as [string, ...string[]]),
-      severity: z.enum(["INFO", "CAUTION"]),
-      qualifier: z.string().max(128).nullable(),
-    }),
+    resolution: resolutionSchema(
+      z.object({
+        code: z.enum(WARNING_CODES as unknown as [string, ...string[]]),
+        severity: z.enum(["INFO", "CAUTION"]),
+        qualifier: z.string().max(128).nullable(),
+      }),
+    ),
   }),
 ]) as unknown as z.ZodType<RulePayload>;
 
@@ -282,24 +340,12 @@ export const ruleRevisionSchema: z.ZodType<RuleRevision> = z.object({
   validUntil: localDateSchema<never>().nullable(),
   payloadSchemaVersion: schemaVersionSchema<never>(),
   payload: rulePayloadSchema,
-  precedence: z.array(
-    z.object({
-      relation: z.enum(PRECEDENCE_RELATIONS as unknown as [string, ...string[]]),
-      overRuleId: slugSchema<never>(),
-    }),
-  ).max(32),
   evidence: z.array(
     z.object({
       sourceRevisionId: uuidSchema<never>(),
       citationDetail: z.string().min(1).max(512),
     }),
   ).max(32),
-  verification: z
-    .object({
-      code: z.enum(VERIFICATION_CODES as unknown as [string, ...string[]]),
-      targetKind: z.enum(["CASE", "PROCEDURE", "DOCUMENT", "VISA_PURPOSE", "FEE_COMPONENT"]),
-    })
-    .nullable(),
 }) as unknown as z.ZodType<RuleRevision>;
 
 /* -------------------------------------------------------------------------- */

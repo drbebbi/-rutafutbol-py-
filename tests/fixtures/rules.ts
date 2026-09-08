@@ -1,6 +1,6 @@
 import type { RuleRevision, RuleSetRevision } from "../../src/rules/definitions/rule-revision";
 import { RULE_PAYLOAD_SCHEMA_VERSION } from "../../src/rules/definitions/rule-revision";
-import type { RulePayload } from "../../src/rules/definitions/payloads";
+import type { PrecedenceEdge, RulePayload } from "../../src/rules/definitions/payloads";
 import type { RuleConditionNode } from "../../src/rules/definitions/ast";
 import type { VerificationStatus } from "../../src/domain/rules/verification";
 import type { EvaluationBundleContent } from "../../src/rules/bundle/bundle-content";
@@ -60,12 +60,29 @@ export function rule(
   ruleId: string,
   payload: RulePayload,
   options: Partial<
-    Pick<RuleRevision, "verificationStatus" | "precedence" | "validFrom" | "validUntil" | "publicationStatus" | "verification">
-  > = {},
+    Pick<RuleRevision, "verificationStatus" | "validFrom" | "validUntil" | "publicationStatus">
+  > & Readonly<{ precedence?: readonly PrecedenceEdge[] }> = {},
 ): RuleRevision {
   ruleCounter += 1;
   const verificationStatus: VerificationStatus = options.verificationStatus ?? "CONFIRMED";
   const resolved = verificationStatus === "CONFIRMED" || verificationStatus === "STRONG_EVIDENCE";
+  /*
+   * The revision's evidence status and the payload's resolution have to agree,
+   * so the fixture derives the resolution from the status a test asks for
+   * rather than letting a test build a rule the validator would reject.
+   */
+  const resolution: RulePayload["resolution"] = resolved
+    ? payload.resolution
+    : payload.resolution.state === "UNRESOLVED"
+      ? { ...payload.resolution, reason: verificationStatus }
+      : {
+          state: "UNRESOLVED",
+          reason: verificationStatus,
+          verification: {
+            code: "CASE_CLASSIFICATION_UNCONFIRMED",
+            target: { kind: "CASE" },
+          },
+        };
   return {
     ruleRevisionId: id(testUuid(ruleCounter)),
     ruleId: id(ruleId),
@@ -77,12 +94,12 @@ export function rule(
     validFrom: options.validFrom ?? ("2000-01-01" as LocalDate),
     validUntil: options.validUntil ?? null,
     payloadSchemaVersion: RULE_PAYLOAD_SCHEMA_VERSION,
-    payload,
-    precedence: options.precedence ?? [],
+    payload: {
+      ...payload,
+      precedence: options.precedence ?? payload.precedence,
+      resolution,
+    } as RulePayload,
     evidence: resolved ? [{ sourceRevisionId: id(TEST_SOURCE_REVISION_ID), citationDetail: "synthetic" }] : [],
-    verification:
-      options.verification ??
-      (resolved ? null : { code: "CASE_CLASSIFICATION_UNCONFIRMED", targetKind: "CASE" }),
   };
 }
 

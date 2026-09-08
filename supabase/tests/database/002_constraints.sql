@@ -1,7 +1,7 @@
 -- Constraints: checks, exclusions, immutability, append-only.
 begin;
 create extension if not exists pgtap;
-select plan(15);
+select plan(16);
 
 select has_check('core', 'rule_revisions', 'core.rule_revisions carries check constraints');
 
@@ -28,7 +28,7 @@ insert into core.rule_revisions (
   verification_status, valid_from, valid_until, payload_schema_version, payload
 ) values (
   '22222222-2222-4222-8222-222222222222', 't.rule', '11111111-1111-4111-8111-111111111111',
-  1, 'PUBLISHED', 'CONFIRMED', '2026-01-01', '2026-06-30', 'rule-payload@1.0', '{}'::jsonb
+  1, 'PUBLISHED', 'CONFIRMED', '2026-01-01', '2026-06-30', 'rule-payload@2.0', '{"family":"WARNING","scope":"CASE","condition":{"kind":"CONSTANT","value":"TRUE"},"precedence":[],"resolution":{"state":"RESOLVED","consequence":{"code":"FEE_MAY_CHANGE","severity":"INFO","qualifier":null}}}'::jsonb
 );
 
 select lives_ok(
@@ -36,7 +36,7 @@ select lives_ok(
        rule_id, rule_set_revision_id, version, publication_status, verification_status,
        valid_from, valid_until, payload_schema_version, payload
      ) values ('t.rule', '11111111-1111-4111-8111-111111111111', 2, 'PUBLISHED', 'CONFIRMED',
-               '2026-07-01', null, 'rule-payload@1.0', '{}'::jsonb) $$,
+               '2026-07-01', null, 'rule-payload@2.0', '{"family":"WARNING","scope":"CASE","condition":{"kind":"CONSTANT","value":"TRUE"},"precedence":[],"resolution":{"state":"RESOLVED","consequence":{"code":"FEE_MAY_CHANGE","severity":"INFO","qualifier":null}}}'::jsonb) $$,
   'an adjacent, non-overlapping revision is accepted'
 );
 
@@ -45,7 +45,7 @@ select throws_ok(
        rule_id, rule_set_revision_id, version, publication_status, verification_status,
        valid_from, valid_until, payload_schema_version, payload
      ) values ('t.rule', '11111111-1111-4111-8111-111111111111', 3, 'PUBLISHED', 'CONFIRMED',
-               '2026-06-01', '2026-08-01', 'rule-payload@1.0', '{}'::jsonb) $$,
+               '2026-06-01', '2026-08-01', 'rule-payload@2.0', '{"family":"WARNING","scope":"CASE","condition":{"kind":"CONSTANT","value":"TRUE"},"precedence":[],"resolution":{"state":"RESOLVED","consequence":{"code":"FEE_MAY_CHANGE","severity":"INFO","qualifier":null}}}'::jsonb) $$,
   '23P01',
   null,
   'an overlapping live revision of the same rule is rejected by the exclusion constraint'
@@ -56,31 +56,43 @@ select lives_ok(
        rule_id, rule_set_revision_id, version, publication_status, verification_status,
        valid_from, valid_until, payload_schema_version, payload
      ) values ('t.rule', '11111111-1111-4111-8111-111111111111', 4, 'DRAFT', 'CONFIRMED',
-               '2026-06-01', '2026-08-01', 'rule-payload@1.0', '{}'::jsonb) $$,
+               '2026-06-01', '2026-08-01', 'rule-payload@2.0', '{"family":"WARNING","scope":"CASE","condition":{"kind":"CONSTANT","value":"TRUE"},"precedence":[],"resolution":{"state":"RESOLVED","consequence":{"code":"FEE_MAY_CHANGE","severity":"INFO","qualifier":null}}}'::jsonb) $$,
   'a draft revision may overlap, because it is not live knowledge'
 );
 
--- An unresolved rule must declare what needs verifying.
+-- A rule with conflicting evidence must not carry a consequence.
 select throws_ok(
   $$ insert into core.rule_revisions (
        rule_id, rule_set_revision_id, version, publication_status, verification_status,
        valid_from, payload_schema_version, payload
      ) values ('t.rule', '11111111-1111-4111-8111-111111111111', 5, 'DRAFT', 'CONFLICTING',
-               '2030-01-01', 'rule-payload@1.0', '{}'::jsonb) $$,
+               '2030-01-01', 'rule-payload@2.0', '{"family":"WARNING","scope":"CASE","condition":{"kind":"CONSTANT","value":"TRUE"},"precedence":[],"resolution":{"state":"RESOLVED","consequence":{"code":"FEE_MAY_CHANGE","severity":"INFO","qualifier":null}}}'::jsonb) $$,
   '23514',
   null,
-  'an unresolved rule without a verification declaration is rejected'
+  'a rule with conflicting evidence that still states a consequence is rejected'
 );
 
+-- ...and the reason it gives must be the evidence status it carries.
 select throws_ok(
   $$ insert into core.rule_revisions (
        rule_id, rule_set_revision_id, version, publication_status, verification_status,
-       valid_from, payload_schema_version, payload, verification
-     ) values ('t.rule', '11111111-1111-4111-8111-111111111111', 6, 'DRAFT', 'CONFIRMED',
-               '2031-01-01', 'rule-payload@1.0', '{}'::jsonb, '{"code":"X"}'::jsonb) $$,
+       valid_from, payload_schema_version, payload
+     ) values ('t.rule', '11111111-1111-4111-8111-111111111111', 6, 'DRAFT', 'CONFLICTING',
+               '2031-01-01', 'rule-payload@2.0',
+               '{"family":"WARNING","scope":"CASE","condition":{"kind":"CONSTANT","value":"TRUE"},"precedence":[],"resolution":{"state":"UNRESOLVED","reason":"UNKNOWN","verification":{"code":"FEE_AMOUNT_UNCONFIRMED","target":{"kind":"CASE"}}}}'::jsonb) $$,
   '23514',
   null,
-  'a resolved rule carrying a verification declaration is rejected'
+  'an unresolved rule whose reason contradicts its evidence status is rejected'
+);
+
+select lives_ok(
+  $$ insert into core.rule_revisions (
+       rule_id, rule_set_revision_id, version, publication_status, verification_status,
+       valid_from, payload_schema_version, payload
+     ) values ('t.rule', '11111111-1111-4111-8111-111111111111', 7, 'DRAFT', 'CONFLICTING',
+               '2032-01-01', 'rule-payload@2.0',
+               '{"family":"WARNING","scope":"CASE","condition":{"kind":"CONSTANT","value":"TRUE"},"precedence":[],"resolution":{"state":"UNRESOLVED","reason":"CONFLICTING","verification":{"code":"FEE_AMOUNT_UNCONFIRMED","target":{"kind":"CASE"}}}}'::jsonb) $$,
+  'an unresolved rule whose reason matches its evidence status is accepted'
 );
 
 -- Domain checks.

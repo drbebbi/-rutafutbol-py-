@@ -21,10 +21,7 @@ function candidate(
     slotFamily: "CASE_TYPE",
     ruleId: id(ruleId),
     truth: "TRUE",
-    resolution: "RESOLVED_CONSEQUENCE",
     support: "CONFIRMED",
-    unresolvedReason: null,
-    verification: null,
     consequence,
     consequenceKey: consequenceKeyOf(consequence),
     indeterminateFactPaths: [],
@@ -33,18 +30,6 @@ function candidate(
     provenance: provenance(ruleId),
     ...overrides,
   };
-}
-
-function unresolved(ruleId: string, overrides: Partial<SlotCandidate<Consequence>> = {}) {
-  return candidate(ruleId, {
-    resolution: "UNRESOLVED_VERIFICATION",
-    support: null,
-    unresolvedReason: "CONFLICTING",
-    verification: { code: "CASE_CLASSIFICATION_UNCONFIRMED", targetKind: "CASE" },
-    consequence: null,
-    consequenceKey: null,
-    ...overrides,
-  });
 }
 
 describe("resolveSlot", () => {
@@ -57,7 +42,7 @@ describe("resolveSlot", () => {
   it("ignores FALSE candidates entirely", () => {
     const resolution = unwrapOrThrow(resolveSlot([candidate("r.a", { truth: "FALSE" })]));
     expect(resolution.decided).toBeNull();
-    expect(resolution.verifications).toEqual([]);
+    expect(resolution.suppressedRuleIds).toEqual([]);
   });
 
   it("refuses when two groups each claim precedence over the other", () => {
@@ -69,39 +54,25 @@ describe("resolveSlot", () => {
     expect(!result.ok && result.error.code).toBe("DECISION_CONFLICT");
   });
 
-  it("silences an unresolved rule the multi-group winner directly dominates", () => {
+  it("reports every rule a confirmed winner takes precedence over", () => {
     const resolution = unwrapOrThrow(
       resolveSlot([
-        candidate("r.winner", { dominates: new Set(["r.loser", "r.unresolved"]) }),
+        candidate("r.winner", { dominates: new Set(["r.loser", "r.elsewhere"]) }),
         candidate("r.loser", {
           consequence: { value: "B" },
           consequenceKey: consequenceKeyOf({ value: "B" }),
         }),
-        unresolved("r.unresolved"),
       ]),
     );
     expect(resolution.decided?.consequence).toEqual({ value: "A" });
-    expect(resolution.verifications).toEqual([]);
+    // Including rules that never entered this slot: an unresolved rule the
+    // winner beats is silenced by the same report.
+    expect(resolution.suppressedRuleIds).toEqual(["r.elsewhere", "r.loser"]);
   });
 
-  it("keeps an unresolved rule the winner does not dominate", () => {
-    const resolution = unwrapOrThrow(
-      resolveSlot([
-        candidate("r.winner", { dominates: new Set(["r.loser"]) }),
-        candidate("r.loser", {
-          consequence: { value: "B" },
-          consequenceKey: consequenceKeyOf({ value: "B" }),
-        }),
-        unresolved("r.unresolved"),
-      ]),
-    );
-    expect(resolution.verifications).toHaveLength(1);
-  });
-
-  it("refuses an unresolved candidate that carries no verification declaration", () => {
-    const result = resolveSlot([unresolved("r.a", { verification: null })]);
-    expect(result.ok).toBe(false);
-    expect(!result.ok && result.error.code).toBe("DECISION_CONFLICT");
+  it("reports nothing suppressed when the winner only merges with agreeing rules", () => {
+    const resolution = unwrapOrThrow(resolveSlot([candidate("r.a"), candidate("r.b")]));
+    expect(resolution.suppressedRuleIds).toEqual([]);
   });
 
   it("ignores an indeterminate candidate that the winner suppressed", () => {
@@ -147,19 +118,29 @@ describe("resolveSlot", () => {
     expect(!decisive.ok && decisive.error.code).toBe("UNGUARDED_NOT_APPLICABLE");
   });
 
-  it("treats an indeterminate unresolved candidate as relevant only when nothing else asks for verification", () => {
-    const alreadyFlagged = unwrapOrThrow(
+  it("keeps an indeterminate candidate relevant when it could still decide the slot", () => {
+    const resolution = unwrapOrThrow(
       resolveSlot([
-        unresolved("r.flagged"),
-        unresolved("r.maybe", { truth: "INDETERMINATE", indeterminateFactPaths: ["case.maritalStatus"] }),
+        candidate("r.maybe", {
+          truth: "INDETERMINATE",
+          indeterminateFactPaths: ["case.maritalStatus"],
+        }),
       ]),
     );
-    expect(alreadyFlagged.decisionRelevantFactPaths).toEqual([]);
+    expect(resolution.decisionRelevantFactPaths).toEqual(["case.maritalStatus"]);
+  });
 
-    const nothingFlagged = unwrapOrThrow(
-      resolveSlot([unresolved("r.maybe", { truth: "INDETERMINATE", indeterminateFactPaths: ["case.maritalStatus"] })]),
+  it("ignores an indeterminate candidate that agrees with the decision anyway", () => {
+    const resolution = unwrapOrThrow(
+      resolveSlot([
+        candidate("r.a"),
+        candidate("r.agrees", {
+          truth: "INDETERMINATE",
+          indeterminateFactPaths: ["case.maritalStatus"],
+        }),
+      ]),
     );
-    expect(nothingFlagged.decisionRelevantFactPaths).toEqual(["case.maritalStatus"]);
+    expect(resolution.decisionRelevantFactPaths).toEqual([]);
   });
 
   it("merges support and provenance across an agreeing group", () => {

@@ -7,11 +7,16 @@ import type {
   ProcedureParameterValue,
 } from "../../domain/procedures/procedure";
 import type { EngineReadyBundleContent } from "../../rules/bundle/engine-ready-bundle";
-import type { RuleFamily } from "../../rules/definitions/payloads";
 import type {
   CountryTemplate,
+  DecisionSlotFamily,
   ProcedureParameterTemplate,
+  RuleFamily,
 } from "../../rules/definitions/payloads";
+import type { SupportLevel } from "../../domain/rules/verification";
+import type { ProvenanceRef } from "../../domain/evaluation/provenance";
+import type { SlotCandidate } from "../precedence/resolve-slot";
+import { consequenceKeyOf } from "../canonicalization/ordering";
 import type { RuleRevision } from "../../rules/definitions/rule-revision";
 import type { RuleFactView, ScopeBinding } from "../classify/fact-view";
 import { ruleConfigurationError, type EngineError } from "../errors/engine-error";
@@ -27,11 +32,53 @@ export type StageContext = Readonly<{
 
 /** The set of rule ids a revision explicitly takes precedence over. */
 export function dominatedRuleIds(revision: RuleRevision): ReadonlySet<string> {
-  return new Set(revision.precedence.map((edge) => edge.overRuleId as string));
+  return new Set(revision.payload.precedence.map((edge) => edge.overRuleId as string));
 }
 
 export function instancesOf(stage: StageContext, family: RuleFamily): readonly RuleInstance[] {
   return stage.instancesByFamily.get(family) ?? [];
+}
+
+export type ConsequenceStatement<C> = Readonly<{ consequence: C; support: SupportLevel }>;
+
+/**
+ * The consequence this instance states, or null if it states none.
+ *
+ * The single gate between the two tracks of the engine. A rule whose payload
+ * resolution is UNRESOLVED returns null here and can therefore never reach a
+ * decision slot; its verification request is collected separately. Consequence
+ * and support always travel together, so no stage can read one without the
+ * other.
+ */
+export function statedConsequence<C>(instance: RuleInstance): ConsequenceStatement<C> | null {
+  const resolution = instance.revision.payload.resolution;
+  if (resolution.state !== "RESOLVED" || instance.support === null) {
+    return null;
+  }
+  return { consequence: resolution.consequence as C, support: instance.support };
+}
+
+/** Builds the slot candidate for a stated consequence. */
+export function slotCandidate<T>(
+  instance: RuleInstance,
+  support: SupportLevel,
+  slotKey: string,
+  slotFamily: DecisionSlotFamily,
+  consequence: T,
+): SlotCandidate<T> & { provenance: ProvenanceRef } {
+  return {
+    slotKey,
+    slotFamily,
+    ruleId: instance.revision.ruleId,
+    truth: instance.truth,
+    support,
+    consequence,
+    consequenceKey: consequenceKeyOf(consequence),
+    indeterminateFactPaths: instance.indeterminateFactPaths,
+    unguardedNotApplicablePaths: instance.unguardedNotApplicablePaths,
+    dominates: dominatedRuleIds(instance.revision),
+    provenance: instance.provenance,
+  };
 }
 
 /**

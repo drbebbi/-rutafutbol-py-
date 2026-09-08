@@ -111,17 +111,30 @@ create table core.rule_revisions (
   payload_schema_version core.schema_version not null,
   -- The payload is DATA. It is interpreted by the engine's closed AST
   -- evaluator; it is never executed, never eval()'d, never compiled.
+  --
+  -- Precedence and the resolution (consequence or verification request) live
+  -- inside the payload, because they are part of what the rule *says* and are
+  -- covered by the payload schema version and the bundle hash along with it.
   payload               jsonb not null,
-  precedence            jsonb not null default '[]'::jsonb,
-  verification          jsonb,
   created_at            timestamptz not null default now(),
   constraint rule_revisions_window_ordered check (valid_until is null or valid_until >= valid_from),
   constraint rule_revisions_unique_version unique (rule_id, version),
-  -- An unresolved rule must say what needs verifying; a resolved one must not
-  -- carry a substitute consequence.
-  constraint rule_revisions_verification_declaration check (
-    (verification_status in ('CONFIRMED', 'STRONG_EVIDENCE') and verification is null)
-    or (verification_status in ('CONFLICTING', 'UNKNOWN', 'OFFICIAL_VERIFICATION_REQUIRED') and verification is not null)
+  -- A rule either states a consequence or asks for verification, and which of
+  -- the two it does has to agree with its evidence status. Enforced here as
+  -- well as in the validator: a hand-edited row must not be able to give a
+  -- CONFLICTING rule a consequence.
+  constraint rule_revisions_resolution_shape check (
+    payload -> 'resolution' ->> 'state' in ('RESOLVED', 'UNRESOLVED')
+  ),
+  constraint rule_revisions_resolution_matches_status check (
+    (verification_status in ('CONFIRMED', 'STRONG_EVIDENCE')
+       and payload -> 'resolution' ->> 'state' = 'RESOLVED')
+    or (verification_status in ('CONFLICTING', 'UNKNOWN', 'OFFICIAL_VERIFICATION_REQUIRED')
+       and payload -> 'resolution' ->> 'state' = 'UNRESOLVED'
+       and payload -> 'resolution' ->> 'reason' = verification_status::text)
+  ),
+  constraint rule_revisions_precedence_is_array check (
+    jsonb_typeof(payload -> 'precedence') = 'array'
   )
 );
 

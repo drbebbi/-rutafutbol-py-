@@ -1,21 +1,23 @@
 import { err, ok, type Result } from "../../shared/result/result";
 import type { ProvenanceRef } from "../../domain/evaluation/provenance";
 import type { RuleFactPath } from "../../rules/definitions/fact-paths";
-import type { ProcedureRulePayload, RequirementValue } from "../../rules/definitions/payloads";
+import type {
+  ProcedureRequirementConsequence,
+  RequirementValue,
+} from "../../rules/definitions/payloads";
 import type {
   RequiredProcedure,
   RequiredProcedureIdentity,
 } from "../../domain/procedures/procedure";
 import { makeRequiredProcedureKey } from "../canonicalization/keys";
-import { compareStrings, consequenceKeyOf } from "../canonicalization/ordering";
+import { compareStrings } from "../canonicalization/ordering";
 import { ruleConfigurationError, type EngineError } from "../errors/engine-error";
 import { resolveSlots, type SlotCandidate } from "../precedence/resolve-slot";
-import type { VerificationFlag } from "../../domain/evaluation/issues";
-import { toVerificationFlag } from "../verification/flags";
 import {
-  dominatedRuleIds,
   instancesOf,
   resolveParameterTemplates,
+  slotCandidate,
+  statedConsequence,
   type StageContext,
 } from "../evaluate/stage-context";
 import type { ProcedureIndex } from "./target-resolution";
@@ -25,7 +27,7 @@ type ProcedureConsequence = Readonly<{ requirement: RequirementValue }>;
 export type ProcedureStageResult = Readonly<{
   requiredProcedures: readonly RequiredProcedure[];
   index: ProcedureIndex;
-  verifications: readonly VerificationFlag[];
+  suppressedRuleIds: readonly string[];
   decisionRelevantFactPaths: readonly RuleFactPath[];
 }>;
 
@@ -46,12 +48,16 @@ export function runProcedureStage(stage: StageContext): Result<ProcedureStageRes
     if (instance.truth === "FALSE") {
       continue;
     }
-    // Instances are grouped by family before this loop, so the payload is
-    // known to be a ProcedureRulePayload; the cast records that invariant
+    // Instances are grouped by family before this loop, so the consequence is
+    // known to be a procedure requirement; the cast records that invariant
     // instead of adding a branch that can never be taken.
-    const payload = instance.revision.payload as ProcedureRulePayload;
+    const stated = statedConsequence<ProcedureRequirementConsequence>(instance);
+    if (stated === null) {
+      // States a verification request rather than a requirement.
+      continue;
+    }
     const parameters = resolveParameterTemplates(
-      payload.consequence.parameters,
+      stated.consequence.parameters,
       stage.view,
       instance.binding,
     );
@@ -75,9 +81,9 @@ export function runProcedureStage(stage: StageContext): Result<ProcedureStageRes
     }
 
     const identity: RequiredProcedureIdentity = {
-      procedureId: payload.consequence.procedureId,
+      procedureId: stated.consequence.procedureId,
       parameters: parameters.value.value,
-      discriminator: payload.consequence.discriminator,
+      discriminator: stated.consequence.discriminator,
     };
     const key = makeRequiredProcedureKey(identity, stage.engine.derivedKeyFormatVersion);
     if (!key.ok) {
@@ -85,24 +91,15 @@ export function runProcedureStage(stage: StageContext): Result<ProcedureStageRes
     }
     identities.set(key.value as string, identity);
 
-    const consequence: ProcedureConsequence = { requirement: payload.consequence.requirement };
-    candidates.push({
-      slotKey: `PROCEDURE_REQUIREMENT:${key.value as string}`,
-      slotFamily: "PROCEDURE_REQUIREMENT",
-      ruleId: instance.revision.ruleId,
-      truth: instance.truth,
-      resolution: instance.resolution,
-      support: instance.support,
-      unresolvedReason: instance.unresolvedReason,
-      verification: instance.revision.verification,
-      consequence: instance.resolution === "RESOLVED_CONSEQUENCE" ? consequence : null,
-      consequenceKey:
-        instance.resolution === "RESOLVED_CONSEQUENCE" ? consequenceKeyOf(consequence) : null,
-      indeterminateFactPaths: instance.indeterminateFactPaths,
-      unguardedNotApplicablePaths: instance.unguardedNotApplicablePaths,
-      dominates: dominatedRuleIds(instance.revision),
-      provenance: instance.provenance,
-    });
+    candidates.push(
+      slotCandidate<ProcedureConsequence>(
+        instance,
+        stated.support,
+        `PROCEDURE_REQUIREMENT:${key.value as string}`,
+        "PROCEDURE_REQUIREMENT",
+        { requirement: stated.consequence.requirement },
+      ),
+    );
   }
 
   const resolved = resolveSlots(candidates);
@@ -115,7 +112,7 @@ export function runProcedureStage(stage: StageContext): Result<ProcedureStageRes
   const negativeKeys = new Set<string>();
   const requiredByProcedureId = new Map<string, string[]>();
   const negativeByProcedureId = new Map<string, string[]>();
-  const verifications: VerificationFlag[] = [];
+  const suppressedRuleIds = new Set<string>();
   const relevantPaths = new Set<RuleFactPath>(floatingPaths);
 
   for (const resolution of resolved.value) {
@@ -125,13 +122,11 @@ export function runProcedureStage(stage: StageContext): Result<ProcedureStageRes
     if (identity === undefined) {
       continue;
     }
-    for (const verification of resolution.verifications) {
-      verifications.push(
-        toVerificationFlag(verification, { procedureKey: key as RequiredProcedure["key"] }),
-      );
-    }
     for (const path of resolution.decisionRelevantFactPaths) {
       relevantPaths.add(path);
+    }
+    for (const ruleId of resolution.suppressedRuleIds) {
+      suppressedRuleIds.add(ruleId);
     }
     if (resolution.decided === null) {
       continue;
@@ -165,7 +160,7 @@ export function runProcedureStage(stage: StageContext): Result<ProcedureStageRes
       requiredByProcedureId,
       negativeByProcedureId,
     },
-    verifications,
+    suppressedRuleIds: [...suppressedRuleIds].sort(compareStrings),
     decisionRelevantFactPaths: [...relevantPaths].sort(),
   });
 }

@@ -27,10 +27,13 @@ import {
   caseTypePayload,
   dependencyPayload,
   documentPayload,
+  documentSelector,
   feePayload,
   formalityPayload,
   procedurePayload,
+  procedureSelector,
   reusePayload,
+  unresolved,
   visaPayload,
   warningPayload,
 } from "../fixtures/payloads";
@@ -103,10 +106,14 @@ describe("documents: negative, formality and unresolved paths", () => {
         [
           caseTypeRule(),
           rule("r.p", procedurePayload("syn.p")),
-          rule("r.doc", documentPayload("syn.p", "syn.d"), {
-            verificationStatus: "UNKNOWN",
-            verification: { code: "DOCUMENT_REQUIREMENT_UNCONFIRMED", targetKind: "PROCEDURE" },
-          }),
+          rule(
+            "r.doc",
+            unresolved(documentPayload("syn.p", "syn.d"), "UNKNOWN", {
+              code: "DOCUMENT_REQUIREMENT_UNCONFIRMED",
+              target: { kind: "PROCEDURE", targetProcedure: procedureSelector("syn.p") },
+            }),
+            { verificationStatus: "UNKNOWN" },
+          ),
         ],
         base,
       ),
@@ -123,10 +130,14 @@ describe("documents: negative, formality and unresolved paths", () => {
           caseTypeRule(),
           rule("r.p", procedurePayload("syn.p")),
           rule("r.doc", documentPayload("syn.p", "syn.d")),
-          rule("r.formality", formalityPayload("syn.p", "syn.d", "syn.apostille"), {
-            verificationStatus: "CONFLICTING",
-            verification: { code: "DOCUMENT_FORMALITY_UNCONFIRMED", targetKind: "DOCUMENT" },
-          }),
+          rule(
+            "r.formality",
+            unresolved(formalityPayload("syn.p", "syn.d", "syn.apostille"), "CONFLICTING", {
+              code: "DOCUMENT_FORMALITY_UNCONFIRMED",
+              target: { kind: "DOCUMENT", targetDocument: documentSelector("syn.p", "syn.d") },
+            }),
+            { verificationStatus: "CONFLICTING" },
+          ),
         ],
         base,
       ),
@@ -212,7 +223,11 @@ describe("warnings and timelines", () => {
             family: "TIMELINE",
             scope: "CASE",
             condition: { kind: "CONSTANT", value: "TRUE" },
-            consequence: { code: "PROCESSING_TIME_INDICATION", severity: "INFO", qualifier: "syn" },
+            precedence: [],
+            resolution: {
+              state: "RESOLVED",
+              consequence: { code: "PROCESSING_TIME_INDICATION", severity: "INFO", qualifier: "syn" },
+            },
           }),
         ],
         base,
@@ -242,10 +257,14 @@ describe("warnings and timelines", () => {
         userCaseFacts(),
         [
           caseTypeRule(),
-          rule("r.w", warningPayload("FEE_MAY_CHANGE", "INFO", null), {
-            verificationStatus: "UNKNOWN",
-            verification: { code: "FEE_AMOUNT_UNCONFIRMED", targetKind: "CASE" },
-          }),
+          rule(
+            "r.w",
+            unresolved(warningPayload("FEE_MAY_CHANGE", "INFO", null), "UNKNOWN", {
+              code: "FEE_AMOUNT_UNCONFIRMED",
+              target: { kind: "CASE" },
+            }),
+            { verificationStatus: "UNKNOWN" },
+          ),
         ],
         base,
       ),
@@ -292,10 +311,14 @@ describe("dependencies and fees, remaining paths", () => {
           caseTypeRule(),
           rule("r.p1", procedurePayload("syn.a")),
           rule("r.p2", procedurePayload("syn.b")),
-          rule("r.dep", dependencyPayload("syn.b", "syn.a"), {
-            verificationStatus: "CONFLICTING",
-            verification: { code: "PROCEDURE_DEPENDENCY_UNCONFIRMED", targetKind: "PROCEDURE" },
-          }),
+          rule(
+            "r.dep",
+            unresolved(dependencyPayload("syn.b", "syn.a"), "CONFLICTING", {
+              code: "PROCEDURE_DEPENDENCY_UNCONFIRMED",
+              target: { kind: "PROCEDURE", targetProcedure: procedureSelector("syn.b") },
+            }),
+            { verificationStatus: "CONFLICTING" },
+          ),
         ],
         base,
       ),
@@ -326,15 +349,32 @@ describe("dependencies and fees, remaining paths", () => {
         [
           caseTypeRule(),
           rule("r.p", procedurePayload("syn.p")),
-          rule("r.fee", feePayload("syn.p", "syn.c", { kind: "FIXED", amount: { amountMinorUnits: 1, currency: id("PYG") } }), {
-            verificationStatus: "OFFICIAL_VERIFICATION_REQUIRED",
-            verification: { code: "FEE_AMOUNT_UNCONFIRMED", targetKind: "FEE_COMPONENT" },
-          }),
+          // The fee component the verification points at is calculated by a
+          // second, resolved rule; the unresolved rule only asks about it.
+          rule("r.fee-known", feePayload("syn.p", "syn.c2", { kind: "FIXED", amount: { amountMinorUnits: 1, currency: id("PYG") } })),
+          rule(
+            "r.fee",
+            unresolved(
+              feePayload("syn.p", "syn.c", { kind: "FIXED", amount: { amountMinorUnits: 1, currency: id("PYG") } }),
+              "OFFICIAL_VERIFICATION_REQUIRED",
+              {
+                code: "FEE_AMOUNT_UNCONFIRMED",
+                target: {
+                  kind: "FEE_COMPONENT",
+                  targetProcedure: procedureSelector("syn.p"),
+                  componentCode: id("syn.c2"),
+                },
+              },
+            ),
+            { verificationStatus: "OFFICIAL_VERIFICATION_REQUIRED" },
+          ),
         ],
         base,
       ),
     );
-    expect(decision.feeCalculations).toEqual([]);
+    // The unresolved rule contributed no fee of its own; only the resolved
+    // one produced a calculation.
+    expect(decision.feeCalculations.map((fee) => String(fee.componentCode))).toEqual(["syn.c2"]);
     expect(decision.verificationFlags.map((flag) => flag.code)).toContain("FEE_AMOUNT_UNCONFIRMED");
   });
 
@@ -377,10 +417,14 @@ describe("classification and visa, remaining paths", () => {
         userCaseFacts(),
         [
           caseTypeRule(),
-          rule("r.visa", visaPayload("syn.purpose", "REQUIRED"), {
-            verificationStatus: "CONFLICTING",
-            verification: { code: "VISA_REQUIREMENT_UNCONFIRMED", targetKind: "VISA_PURPOSE" },
-          }),
+          rule(
+            "r.visa",
+            unresolved(visaPayload("syn.purpose", "REQUIRED"), "CONFLICTING", {
+              code: "VISA_REQUIREMENT_UNCONFIRMED",
+              target: { kind: "VISA_PURPOSE", purposeCode: id("syn.purpose") },
+            }),
+            { verificationStatus: "CONFLICTING" },
+          ),
         ],
         base,
       ),
@@ -684,12 +728,16 @@ describe("fact-driven templates in stages", () => {
             family: "DOCUMENT_REQUIREMENT",
             scope: "CASE",
             condition: { kind: "CONSTANT", value: "TRUE" },
-            consequence: {
-              forProcedure: { procedureId: id("syn.p"), parameters: [], discriminator: null },
-              documentTypeId: id("syn.d"),
-              issuingCountry: { kind: "FACT", path: "case.entryTravelDocumentCountry" },
-              discriminator: null,
-              requirement: "REQUIRED",
+            precedence: [],
+            resolution: {
+              state: "RESOLVED",
+              consequence: {
+                forProcedure: { procedureId: id("syn.p"), parameters: [], discriminator: null },
+                documentTypeId: id("syn.d"),
+                issuingCountry: { kind: "FACT", path: "case.entryTravelDocumentCountry" },
+                discriminator: null,
+                requirement: "REQUIRED",
+              },
             },
           }),
         ],
@@ -714,12 +762,16 @@ describe("fact-driven templates in stages", () => {
             family: "DOCUMENT_REQUIREMENT",
             scope: "CASE",
             condition: indeterminate,
-            consequence: {
-              forProcedure: { procedureId: id("syn.p"), parameters: [], discriminator: null },
-              documentTypeId: id("syn.d"),
-              issuingCountry: { kind: "FACT", path: "case.entryTravelDocumentCountry" },
-              discriminator: null,
-              requirement: "REQUIRED",
+            precedence: [],
+            resolution: {
+              state: "RESOLVED",
+              consequence: {
+                forProcedure: { procedureId: id("syn.p"), parameters: [], discriminator: null },
+                documentTypeId: id("syn.d"),
+                issuingCountry: { kind: "FACT", path: "case.entryTravelDocumentCountry" },
+                discriminator: null,
+                requirement: "REQUIRED",
+              },
             },
           }),
         ],
@@ -741,12 +793,16 @@ describe("fact-driven templates in stages", () => {
             family: "DOCUMENT_REQUIREMENT",
             scope: "CASE",
             condition: { kind: "CONSTANT", value: "TRUE" },
-            consequence: {
-              forProcedure: { procedureId: id("syn.p"), parameters: [], discriminator: null },
-              documentTypeId: id("syn.d"),
-              issuingCountry: { kind: "FACT", path: "case.entryTravelDocumentCountry" },
-              discriminator: null,
-              requirement: "REQUIRED",
+            precedence: [],
+            resolution: {
+              state: "RESOLVED",
+              consequence: {
+                forProcedure: { procedureId: id("syn.p"), parameters: [], discriminator: null },
+                documentTypeId: id("syn.d"),
+                issuingCountry: { kind: "FACT", path: "case.entryTravelDocumentCountry" },
+                discriminator: null,
+                requirement: "REQUIRED",
+              },
             },
           }),
         ],
@@ -769,15 +825,19 @@ describe("fact-driven templates in stages", () => {
       family: "FEE",
       scope: "CASE",
       condition: { kind: "CONSTANT", value: "TRUE" },
-      consequence: {
-        forProcedure: {
-          procedureId: id("syn.p"),
-          parameters: [{ name: "c", value: { kind: "FACT", path: "case.citizenshipCountries" } }],
-          discriminator: null,
+      precedence: [],
+      resolution: {
+        state: "RESOLVED",
+        consequence: {
+          forProcedure: {
+            procedureId: id("syn.p"),
+            parameters: [{ name: "c", value: { kind: "FACT", path: "case.citizenshipCountries" } }],
+            discriminator: null,
+          },
+          componentCode: id("syn.c"),
+          feeType: "FIXED_AMOUNT",
+          formula: { kind: "FIXED", amount: { amountMinorUnits: 1, currency: id("PYG") } },
         },
-        componentCode: id("syn.c"),
-        feeType: "FIXED_AMOUNT",
-        formula: { kind: "FIXED", amount: { amountMinorUnits: 1, currency: id("PYG") } },
       },
     });
     const issues = validateRuleRevisionStructure(revision);

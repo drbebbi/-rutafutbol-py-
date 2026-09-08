@@ -20,6 +20,7 @@ import {
   type ProcedureTargetSelector,
   type RuleFamily,
   type RulePayload,
+  type VerificationTargetTemplate,
 } from "../definitions/payloads";
 import { RULE_PAYLOAD_SCHEMA_VERSION, type RuleRevision } from "../definitions/rule-revision";
 
@@ -41,7 +42,11 @@ export type RuleValidationIssueCode =
   | "UNEXPECTED_VERIFICATION_DECLARATION"
   | "INVALID_EFFECTIVE_WINDOW"
   | "SELF_PRECEDENCE"
-  | "DUPLICATE_PRECEDENCE_EDGE";
+  | "DUPLICATE_PRECEDENCE_EDGE"
+  /** The resolution state contradicts the revision's evidence status. */
+  | "RESOLUTION_STATUS_MISMATCH"
+  /** A classification rule's consequence does not match its declared subject. */
+  | "CLASSIFICATION_SUBJECT_MISMATCH";
 
 export type RuleValidationIssue = Readonly<{
   code: RuleValidationIssueCode;
@@ -249,29 +254,56 @@ function checkProcedureSelector(ctx: Ctx, selector: ProcedureTargetSelector): vo
   checkParameterTemplates(ctx, selector.parameters);
 }
 
-function checkConsequenceTemplates(ctx: Ctx, payload: RulePayload): void {
+function checkVerificationTemplate(ctx: Ctx, template: VerificationTargetTemplate): void {
+  switch (template.kind) {
+    case "PROCEDURE":
+    case "FEE_COMPONENT":
+      checkProcedureSelector(ctx, template.targetProcedure);
+      return;
+    case "DOCUMENT":
+      checkProcedureSelector(ctx, template.targetDocument.forProcedure);
+      checkCountryTemplate(ctx, template.targetDocument.issuingCountry);
+      return;
+    case "CASE":
+    case "VISA_PURPOSE":
+      return;
+  }
+}
+
+/**
+ * Fact paths reachable through a payload's templates.
+ *
+ * Both halves of the resolution are walked: a consequence's selectors and an
+ * unresolved rule's verification target are equally capable of reading a fact,
+ * so both are held to the family's access domain.
+ */
+function checkResolutionTemplates(ctx: Ctx, payload: RulePayload): void {
+  if (payload.resolution.state === "UNRESOLVED") {
+    checkVerificationTemplate(ctx, payload.resolution.verification.target);
+    return;
+  }
   switch (payload.family) {
     case "PROCEDURE":
-      checkParameterTemplates(ctx, payload.consequence.parameters);
+      checkParameterTemplates(ctx, payload.resolution.consequence.parameters);
       return;
     case "DOCUMENT_REQUIREMENT":
-      checkProcedureSelector(ctx, payload.consequence.forProcedure);
-      checkCountryTemplate(ctx, payload.consequence.issuingCountry);
+      checkProcedureSelector(ctx, payload.resolution.consequence.forProcedure);
+      checkCountryTemplate(ctx, payload.resolution.consequence.issuingCountry);
       return;
     case "DOCUMENT_FORMALITY":
-      checkProcedureSelector(ctx, payload.consequence.forDocument.forProcedure);
-      checkCountryTemplate(ctx, payload.consequence.forDocument.issuingCountry);
+      checkProcedureSelector(ctx, payload.resolution.consequence.forDocument.forProcedure);
+      checkCountryTemplate(ctx, payload.resolution.consequence.forDocument.issuingCountry);
       return;
     case "DOCUMENT_REUSE":
-      checkProcedureSelector(ctx, payload.consequence.forDocument.forProcedure);
-      checkCountryTemplate(ctx, payload.consequence.forDocument.issuingCountry);
+      checkProcedureSelector(ctx, payload.resolution.consequence.forDocument.forProcedure);
+      checkCountryTemplate(ctx, payload.resolution.consequence.forDocument.issuingCountry);
       return;
     case "DEPENDENCY":
-      checkProcedureSelector(ctx, payload.consequence.dependent);
-      checkProcedureSelector(ctx, payload.consequence.dependsOn);
+      checkProcedureSelector(ctx, payload.resolution.consequence.dependent);
+      checkProcedureSelector(ctx, payload.resolution.consequence.dependsOn);
       return;
     case "FEE":
-      checkProcedureSelector(ctx, payload.consequence.forProcedure);
+      checkProcedureSelector(ctx, payload.resolution.consequence.forProcedure);
       return;
     case "CLASSIFICATION":
     case "SPECIAL_CASE":
@@ -305,8 +337,17 @@ export function validateRuleRevisionStructure(revision: RuleRevision): readonly 
   }
 
   walkCondition(ctx, revision.payload.condition, 1, { n: 0 });
-  checkConsequenceTemplates(ctx, revision.payload);
+  checkResolutionTemplates(ctx, revision.payload);
 
+  /*
+   * Resolution and evidence status must agree.
+   *
+   * These are two views of the same fact, stored separately because the
+   * engine reads one and the research process maintains the other. A rule
+   * whose evidence is CONFLICTING but which still states a consequence is
+   * exactly the defect this check exists to stop.
+   */
+  const resolution = revision.payload.resolution;
   if (isSupportLevel(revision.verificationStatus)) {
     if (revision.evidence.length === 0) {
       push(
@@ -315,18 +356,36 @@ export function validateRuleRevisionStructure(revision: RuleRevision): readonly 
         `${revision.verificationStatus} rule must cite at least one source revision`,
       );
     }
-    if (revision.verification !== null) {
+    if (resolution.state !== "RESOLVED") {
       push(
         ctx,
-        "UNEXPECTED_VERIFICATION_DECLARATION",
-        "a resolved rule must not carry a verification declaration",
+        "RESOLUTION_STATUS_MISMATCH",
+        `${revision.verificationStatus} rule must state a consequence, not a verification request`,
       );
     }
-  } else if (revision.verification === null) {
+  } else if (resolution.state !== "UNRESOLVED") {
     push(
       ctx,
       "MISSING_VERIFICATION_DECLARATION",
       `${revision.verificationStatus} rule must declare what needs verification`,
+    );
+  } else if (resolution.reason !== revision.verificationStatus) {
+    push(
+      ctx,
+      "RESOLUTION_STATUS_MISMATCH",
+      `rule is unresolved for ${resolution.reason} but its evidence status is ${revision.verificationStatus}`,
+    );
+  }
+
+  if (
+    revision.payload.family === "CLASSIFICATION" &&
+    resolution.state === "RESOLVED" &&
+    (resolution.consequence as { kind: string }).kind !== revision.payload.subject
+  ) {
+    push(
+      ctx,
+      "CLASSIFICATION_SUBJECT_MISMATCH",
+      `classification rule declares subject ${revision.payload.subject} but states a ${(resolution.consequence as { kind: string }).kind} consequence`,
     );
   }
 
@@ -339,7 +398,7 @@ export function validateRuleRevisionStructure(revision: RuleRevision): readonly 
   }
 
   const seenEdges = new Set<string>();
-  for (const edge of revision.precedence) {
+  for (const edge of revision.payload.precedence) {
     if ((edge.overRuleId as string) === (revision.ruleId as string)) {
       push(ctx, "SELF_PRECEDENCE", "a rule cannot take precedence over itself");
     }

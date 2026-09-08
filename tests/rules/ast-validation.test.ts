@@ -19,7 +19,12 @@ function classification(condition: RuleConditionNode, scope: RulePayload["scope"
     family: "CLASSIFICATION",
     scope,
     condition,
-    consequence: { kind: "CASE_TYPE", caseType: "STANDARD_FIRST_CEDULA_FROM_NONE" },
+    subject: "CASE_TYPE",
+    precedence: [],
+    resolution: {
+      state: "RESOLVED",
+      consequence: { kind: "CASE_TYPE", caseType: "STANDARD_FIRST_CEDULA_FROM_NONE" },
+    },
   };
 }
 
@@ -132,12 +137,16 @@ describe("structural validation", () => {
         operator: "EQ",
         operand: { kind: "STRING", value: "OBTAINED" },
       },
-      consequence: {
-        forProcedure: { procedureId: id("synthetic.procedure"), parameters: [], discriminator: null },
-        documentTypeId: id("synthetic.document"),
-        issuingCountry: null,
-        discriminator: null,
-        requirement: "REQUIRED",
+      precedence: [],
+      resolution: {
+        state: "RESOLVED",
+        consequence: {
+          forProcedure: { procedureId: id("synthetic.procedure"), parameters: [], discriminator: null },
+          documentTypeId: id("synthetic.document"),
+          issuingCountry: null,
+          discriminator: null,
+          requirement: "REQUIRED",
+        },
       },
     });
     expect(codes).toContain("FACT_ACCESS_DOMAIN_FORBIDDEN");
@@ -153,14 +162,18 @@ describe("structural validation", () => {
         operator: "EQ",
         operand: { kind: "STRING", value: "OBTAINED" },
       },
-      consequence: {
-        forDocument: {
-          forProcedure: { procedureId: id("synthetic.procedure"), parameters: null, discriminator: null },
-          documentTypeId: id("synthetic.document"),
-          issuingCountry: null,
-          discriminator: null,
+      precedence: [],
+      resolution: {
+        state: "RESOLVED",
+        consequence: {
+          forDocument: {
+            forProcedure: { procedureId: id("synthetic.procedure"), parameters: null, discriminator: null },
+            documentTypeId: id("synthetic.document"),
+            issuingCountry: null,
+            discriminator: null,
+          },
+          resolution: "REUSABLE_CONFIRMED",
         },
-        resolution: "REUSABLE_CONFIRMED",
       },
     });
     expect(codes).toEqual([]);
@@ -243,24 +256,49 @@ describe("structural validation", () => {
   });
 
   it("requires evidence for a resolved rule and a declaration for an unresolved one", () => {
-    const withoutEvidence = rule("synthetic.rule", classification(alwaysTrue));
-    const stripped = { ...withoutEvidence, evidence: [] };
+    const withEvidence = rule("synthetic.rule", classification(alwaysTrue));
+    const stripped = { ...withEvidence, evidence: [] };
     expect(validateRuleRevisionStructure(stripped).map((issue) => issue.code)).toContain(
       "MISSING_EVIDENCE",
     );
 
-    const unresolved = rule("synthetic.rule", classification(alwaysTrue), {
-      verificationStatus: "OFFICIAL_VERIFICATION_REQUIRED",
-    });
-    expect(validateRuleRevisionStructure({ ...unresolved, verification: null }).map((i) => i.code)).toContain(
-      "MISSING_VERIFICATION_DECLARATION",
-    );
+    // A rule whose evidence is unresolved but which still states a consequence
+    // is the defect the model exists to make impossible.
     expect(
       validateRuleRevisionStructure({
-        ...withoutEvidence,
-        verification: { code: "CASE_CLASSIFICATION_UNCONFIRMED", targetKind: "CASE" },
+        ...withEvidence,
+        verificationStatus: "OFFICIAL_VERIFICATION_REQUIRED",
       }).map((i) => i.code),
-    ).toContain("UNEXPECTED_VERIFICATION_DECLARATION");
+    ).toContain("MISSING_VERIFICATION_DECLARATION");
+
+    // ...and so is the reverse: a confirmed rule that only asks a question.
+    const asksForVerification = rule("synthetic.rule", classification(alwaysTrue), {
+      verificationStatus: "OFFICIAL_VERIFICATION_REQUIRED",
+    });
+    expect(
+      validateRuleRevisionStructure({
+        ...asksForVerification,
+        verificationStatus: "CONFIRMED",
+      }).map((i) => i.code),
+    ).toContain("RESOLUTION_STATUS_MISMATCH");
+
+    // The reason an unresolved rule gives must be the status it carries.
+    expect(
+      validateRuleRevisionStructure({
+        ...asksForVerification,
+        verificationStatus: "CONFLICTING",
+      }).map((i) => i.code),
+    ).toContain("RESOLUTION_STATUS_MISMATCH");
+  });
+
+  it("rejects a classification rule whose consequence contradicts its subject", () => {
+    const base = rule("synthetic.rule", classification(alwaysTrue));
+    expect(
+      validateRuleRevisionStructure({
+        ...base,
+        payload: { ...base.payload, subject: "RESIDENCE_CLASSIFICATION" } as typeof base.payload,
+      }).map((i) => i.code),
+    ).toContain("CLASSIFICATION_SUBJECT_MISMATCH");
   });
 
   it("rejects an inverted effective window and self / duplicate precedence", () => {
@@ -273,11 +311,14 @@ describe("structural validation", () => {
     expect(
       validateRuleRevisionStructure({
         ...base,
-        precedence: [
-          { relation: "OVERRIDES", overRuleId: id("synthetic.rule") },
-          { relation: "EXCEPTION_TO", overRuleId: id("other.rule") },
-          { relation: "EXCEPTION_TO", overRuleId: id("other.rule") },
-        ],
+        payload: {
+          ...base.payload,
+          precedence: [
+            { relation: "OVERRIDES", overRuleId: id("synthetic.rule") },
+            { relation: "EXCEPTION_TO", overRuleId: id("other.rule") },
+            { relation: "EXCEPTION_TO", overRuleId: id("other.rule") },
+          ],
+        },
       }).map((i) => i.code),
     ).toEqual(expect.arrayContaining(["SELF_PRECEDENCE", "DUPLICATE_PRECEDENCE_EDGE"]));
   });

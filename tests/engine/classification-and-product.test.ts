@@ -1,7 +1,15 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { noSpecialCase, unansweredSpecialCase, userCaseFacts, country } from "../fixtures/facts";
 import { firstCedulaPolicy, pathway, resetRuleCounter, rule, supportedCoverage } from "../fixtures/rules";
-import { caseTypePayload, documentPayload, procedurePayload, residencePayload, visaPayload, warningPayload } from "../fixtures/payloads";
+import {
+  caseTypePayload,
+  documentPayload,
+  procedurePayload,
+  residencePayload,
+  unresolved,
+  visaPayload,
+  warningPayload,
+} from "../fixtures/payloads";
 import { expectOk, runEngine } from "../fixtures/engine";
 import { knownFact, unansweredFact, unknownFact } from "../../src/domain/case/knowledge";
 import { knownSpecialCaseGuard } from "../../src/case-engine/classify/special-case-guard";
@@ -195,10 +203,14 @@ describe("residence classification", () => {
         userCaseFacts(),
         [
           caseTypeRule(),
-          rule("r.res", residencePayload("TEMPORAL"), {
-            verificationStatus: "CONFLICTING",
-            verification: { code: "RESIDENCE_CLASSIFICATION_UNCONFIRMED", targetKind: "CASE" },
-          }),
+          rule(
+            "r.res",
+            unresolved(residencePayload("TEMPORAL"), "CONFLICTING", {
+              code: "RESIDENCE_CLASSIFICATION_UNCONFIRMED",
+              target: { kind: "CASE" },
+            }),
+            { verificationStatus: "CONFLICTING" },
+          ),
         ],
         supported,
       ),

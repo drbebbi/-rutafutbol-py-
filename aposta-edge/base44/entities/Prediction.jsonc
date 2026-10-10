@@ -106,6 +106,20 @@
     },
     "mapping_evidence": {
       "type": "object"
+    },
+    "insufficient_reasons": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "probability_intervals": {
+      "type": "object",
+      "description": "±1 SE input-sampling band per market/selection"
+    },
+    "kickoff_at_prediction": {
+      "type": "string",
+      "format": "date-time"
     }
   },
   "required": [

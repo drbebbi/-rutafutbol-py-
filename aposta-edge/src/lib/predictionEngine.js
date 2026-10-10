@@ -13,7 +13,8 @@ export function poissonPmf(k, lambda) {
   return p;
 }
 
-const MAX_GOALS = 10;
+// 15 goals per side keeps the truncated tail below 1e-4 for lambdas up to ~6.
+const MAX_GOALS = 15;
 
 // Dixon-Coles rho adjustment: corrects underestimation of 0-0, 1-0, 0-1, 1-1
 // in low-scoring football. rho is a small parameter (typically -0.1..0.1).
@@ -117,15 +118,17 @@ export function eloUpdate(rating, opponent, score, k = 24, homeAdvantage = 65) {
   return rating + k * (score - expected);
 }
 
-// Convert an Elo win expectation into an expected-goals estimate via a
-// logistic mapping (calibrated heuristically; replaced by calibration data later).
-export function eloToLambda(ratingA, ratingB, homeAdvantage = 65, baseGoals = 1.35) {
+// Convert an Elo win expectation into expected goals. HEURISTIC: the total
+// goal expectation comes from `baseTotalGoals` (a league average, ~2.6 in most
+// top leagues) and is split between the sides by win expectation. The previous
+// mapping used 1.35 as the *total*, which predicted ~1.4 goals per match and
+// pushed every Over/Under and BTTS market towards Under/No.
+// Elo only carries information when ratings were actually fitted from results;
+// see buildModelLambdas — an unfitted 1500 prior must never be used.
+export function eloToLambda(ratingA, ratingB, homeAdvantage = 65, baseTotalGoals = 2.6) {
+  if (![ratingA, ratingB, homeAdvantage, baseTotalGoals].every(Number.isFinite) || baseTotalGoals <= 0) throw new Error("INVALID_ELO_PARAMETERS");
   const ea = eloExpected(ratingA, ratingB, homeAdvantage);
-  // split a fixed expected total between the two sides by win expectation
-  const total = baseGoals + Math.abs(ea - 0.5) * 0.6;
-  const lambdaHome = clampProbability(ea) * total * 1.08;
-  const lambdaAway = clampProbability(1 - ea) * total * 0.92;
-  return { lambdaHome: Math.max(0.2, lambdaHome), lambdaAway: Math.max(0.2, lambdaAway) };
+  return { lambdaHome: Math.max(0.2, baseTotalGoals * ea), lambdaAway: Math.max(0.2, baseTotalGoals * (1 - ea)) };
 }
 
 // --- Ensemble: combine goal-model + Elo-derived lambdas + feature blend ---

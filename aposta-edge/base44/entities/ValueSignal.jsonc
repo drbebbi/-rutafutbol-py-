@@ -89,6 +89,28 @@
     "is_active": {
       "type": "boolean",
       "default": true
+    },
+    "suppression_reasons": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "ev_lower": {
+      "type": "number"
+    },
+    "probability_interval": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      }
+    },
+    "odds_observed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "bookmaker_margin": {
+      "type": "number"
     }
   },
   "required": [

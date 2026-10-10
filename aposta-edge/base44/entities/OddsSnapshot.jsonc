@@ -57,6 +57,10 @@
     "source_verified": {
       "type": "boolean",
       "default": false
+    },
+    "origin": {
+      "type": "string",
+      "description": "aposta_api | manual_import"
     }
   },
   "required": [

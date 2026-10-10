@@ -106,6 +106,40 @@
         "void"
       ],
       "default": "pending"
+    },
+    "recommendation_key": {
+      "type": "string"
+    },
+    "prediction_id": {
+      "type": "string"
+    },
+    "odds_snapshot_id": {
+      "type": "string"
+    },
+    "published": {
+      "type": "boolean",
+      "default": false
+    },
+    "unpublished_reasons": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "kickoff_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "stake_units": {
+      "type": "number",
+      "default": 1
+    },
+    "profit_units": {
+      "type": "number"
+    },
+    "settled_at": {
+      "type": "string",
+      "format": "date-time"
     }
   },
   "required": [

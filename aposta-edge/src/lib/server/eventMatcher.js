@@ -25,7 +25,9 @@ export function nameSimilarity(a, b) {
   for (const t of sa) if (sb.has(t)) inter++;
   const union = sa.size + sb.size - inter;
   let score = union > 0 ? inter / union : 0;
-  if (na.includes(nb) || nb.includes(na)) score = Math.max(score, 0.9);
+  // Containment ("Guarani" ⊂ "Guarani Trinidad") is a hint, never proof: two
+  // different clubs often share a name stem. Capped below SAFE_THRESHOLD.
+  if (` ${na} `.includes(` ${nb} `) || ` ${nb} `.includes(` ${na} `)) score = Math.max(score, 0.75);
   return score;
 }
 
@@ -75,32 +77,28 @@ export function rankFixtures(event, fixtures) {
   return { best, gap, confirmed, reason: confirmed ? null : gap < MIN_CANDIDATE_GAP ? "AMBIGUOUS_FIXTURES" : "FIXTURE_NOT_CONFIRMED" };
 }
 
-// Resolve a team name to a Team record using aliases first, then fuzzy name match.
+// Resolve a team name to a Team record: alias first, then EXACT normalised
+// name. Fuzzy similarity is deliberately not used for automatic resolution —
+// merging two clubs corrupts their statistics permanently, whereas an
+// unresolved name just creates a separate team an admin can alias later.
 export async function resolveTeam(base44, name, sport = "football") {
   if (!name) return null;
   const norm = normaliseName(name);
-  // 1. alias lookup (exact normalised)
-  const aliasPage = await base44.entities.TeamAlias.filter(
-    { normalised_name: norm },
-    { limit: 5 }
-  );
-  for (const a of aliasPage.items || []) {
-    const team = await base44.entities.Team.get(a.team_id).catch(() => null);
+  const aliasPage = await base44.entities.TeamAlias.filter({ normalised_name: norm }, { limit: 5 });
+  const aliasTeams = [...new Set((aliasPage.items || []).map((a) => a.team_id))];
+  if (aliasTeams.length === 1) {
+    const team = await base44.entities.Team.get(aliasTeams[0]).catch(() => null);
     if (team) return { team, via: "alias", confidence: 1 };
   }
-  // 2. fuzzy name match
-  const page = await base44.entities.Team.filter({ sport }, { limit: 200 });
-  let best = null;
-  for (const t of page.items || []) {
-    const sim = nameSimilarity(name, t.name);
-    if (!best || sim > best.sim) best = { team: t, sim, via: "fuzzy" };
-  }
-  if (best && best.sim >= SAFE_THRESHOLD) return { team: best.team, via: best.via, confidence: best.sim };
+  if (aliasTeams.length > 1) return null; // conflicting aliases: refuse to guess
+  const page = await base44.entities.Team.filter({ sport }, { limit: 500 });
+  const exact = (page.items || []).filter((t) => normaliseName(t.name) === norm);
+  if (exact.length === 1) return { team: exact[0], via: "exact", confidence: 1 };
   return null;
 }
 
 // Resolve a competition similarly.
-export async function resolveCompetition(base44, name, country = null) {
+export async function resolveCompetition(base44, name) {
   if (!name) return null;
   const norm = normaliseName(name);
   const aliasPage = await base44.entities.CompetitionAlias.filter(

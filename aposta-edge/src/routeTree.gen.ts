@@ -22,6 +22,7 @@ import { Route as AuthedSettingsRouteImport } from './routes/_authed/settings'
 import { Route as AuthedValueRouteImport } from './routes/_authed/value'
 import { Route as ApiTimeRouteImport } from './routes/api/time'
 import { Route as AuthedEventEventIdRouteImport } from './routes/_authed/event.$eventId'
+import { Route as ApiCronCycleRouteImport } from './routes/api/cron.cycle'
 
 const AuthedRoute = AuthedRouteImport.update({
   id: '/_authed',
@@ -87,6 +88,11 @@ const AuthedEventEventIdRoute = AuthedEventEventIdRouteImport.update({
   path: '/event/$eventId',
   getParentRoute: () => AuthedRoute,
 } as any)
+const ApiCronCycleRoute = ApiCronCycleRouteImport.update({
+  id: '/api/cron/cycle',
+  path: '/api/cron/cycle',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthedIndexRoute
@@ -101,6 +107,7 @@ export interface FileRoutesByFullPath {
   '/value': typeof AuthedValueRoute
   '/api/time': typeof ApiTimeRoute
   '/event/$eventId': typeof AuthedEventEventIdRoute
+  '/api/cron/cycle': typeof ApiCronCycleRoute
 }
 export interface FileRoutesByTo {
   '/forgot-password': typeof ForgotPasswordRoute
@@ -115,6 +122,7 @@ export interface FileRoutesByTo {
   '/api/time': typeof ApiTimeRoute
   '/': typeof AuthedIndexRoute
   '/event/$eventId': typeof AuthedEventEventIdRoute
+  '/api/cron/cycle': typeof ApiCronCycleRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -131,6 +139,7 @@ export interface FileRoutesById {
   '/api/time': typeof ApiTimeRoute
   '/_authed/': typeof AuthedIndexRoute
   '/_authed/event/$eventId': typeof AuthedEventEventIdRoute
+  '/api/cron/cycle': typeof ApiCronCycleRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -147,6 +156,7 @@ export interface FileRouteTypes {
     | '/value'
     | '/api/time'
     | '/event/$eventId'
+    | '/api/cron/cycle'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/forgot-password'
@@ -161,6 +171,7 @@ export interface FileRouteTypes {
     | '/api/time'
     | '/'
     | '/event/$eventId'
+    | '/api/cron/cycle'
   id:
     | '__root__'
     | '/_authed'
@@ -176,6 +187,7 @@ export interface FileRouteTypes {
     | '/api/time'
     | '/_authed/'
     | '/_authed/event/$eventId'
+    | '/api/cron/cycle'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -185,6 +197,7 @@ export interface RootRouteChildren {
   RegisterRoute: typeof RegisterRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   ApiTimeRoute: typeof ApiTimeRoute
+  ApiCronCycleRoute: typeof ApiCronCycleRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -280,6 +293,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedEventEventIdRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/api/cron/cycle': {
+      id: '/api/cron/cycle'
+      path: '/api/cron/cycle'
+      fullPath: '/api/cron/cycle'
+      preLoaderRoute: typeof ApiCronCycleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -313,6 +333,7 @@ const rootRouteChildren: RootRouteChildren = {
   RegisterRoute: RegisterRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   ApiTimeRoute: ApiTimeRoute,
+  ApiCronCycleRoute: ApiCronCycleRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

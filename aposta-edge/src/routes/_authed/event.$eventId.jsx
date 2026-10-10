@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StatusPill, EvCell, OddsDisplay, ConfidencePill, ProbBar, QualityBadge, EmptyState } from "@/components/betting/UiBits";
+import { formatPercent } from "@/lib/oddsMath";
 import { ArrowLeft, TrendingUp, Activity, ShieldAlert, AlertTriangle, ExternalLink } from "lucide-react";
 
 export const Route = createFileRoute("/_authed/event/$eventId")({
@@ -19,7 +20,7 @@ export const Route = createFileRoute("/_authed/event/$eventId")({
 
 function EventDetail() {
   const d = Route.useLoaderData();
-  const { event, markets, selections, predictions, injuries, lineups, stats, snapshots, signals, provenance, odds_fresh, kickoff_passed, mapping_confident, is_demo, verifiable, prediction_computed } = d;
+  const { event, markets, selections, predictions, injuries, lineups, snapshots, signals, provenance, odds_fresh, kickoff_passed, mapping_confident, is_demo, verifiable, prediction_computed, model_version } = d;
   const prediction = predictions[0];
   const kickoff = event.kickoff_utc ? new Date(event.kickoff_utc).toLocaleString("en-US", { timeZone: "America/Asuncion" }) : "TBD";
   const oddsObserved = snapshots[0]?.source_timestamp ? new Date(snapshots[0].source_timestamp).toLocaleString("en-US", { timeZone: "America/Asuncion" }) : null;
@@ -68,7 +69,12 @@ function EventDetail() {
         <Card className="lg:col-span-2">
           <CardHeader><CardTitle className="text-base flex items-center gap-2"><Activity className="w-4 h-4" />Model Prediction</CardTitle></CardHeader>
           <CardContent className="space-y-4">
-            {prediction ? (
+            {prediction && prediction.computation_status !== "computed" ? (
+              <div className="text-sm space-y-1">
+                <p className="font-medium text-amber-400">No forecast — insufficient data</p>
+                <p className="text-xs text-muted-foreground">The model needs at least 6 verified pre-kickoff results per team. Reasons: {(prediction.insufficient_reasons || []).join(", ") || "not recorded"}</p>
+              </div>
+            ) : prediction ? (
               <>
                 <div>
                   <p className="text-xs text-muted-foreground mb-2">1X2 Probability</p>
@@ -82,7 +88,7 @@ function EventDetail() {
                 <div className="flex items-center gap-3 text-sm">
                   <span className="text-muted-foreground">Confidence:</span>
                   <ConfidencePill confidence={prediction.confidence} />
-                  <span className="text-muted-foreground">Score: {(prediction.confidence_score * 100).toFixed(0)}%</span>
+                  <span className="text-muted-foreground">Model {model_version?.label || "—"} · {model_version?.validation_status || "unvalidated"} · {prediction.calibration_status || "uncalibrated"}</span>
                 </div>
               </>
             ) : (
@@ -123,7 +129,8 @@ function EventDetail() {
                 <div key={s.id} className="flex items-center gap-3 px-4 py-3">
                   <div className="flex-1">
                     <p className="text-sm font-medium capitalize">{s.market_key.replace(/_/g, " ")} · {s.selection}{s.line != null ? ` ${s.line}` : ""}</p>
-                    <p className="text-xs text-muted-foreground">Model: {(s.model_probability * 100).toFixed(1)}% · No-vig: {(s.aposta_no_vig_probability * 100).toFixed(1)}%</p>
+                    <p className="text-xs text-muted-foreground">Model: {formatPercent(s.model_probability)}{s.probability_interval ? ` (±1 SE ${formatPercent(s.probability_interval[0])}–${formatPercent(s.probability_interval[1])})` : ""} · No-vig: {formatPercent(s.aposta_no_vig_probability)}</p>
+                    <p className={`text-xs ${s.published ? "text-emerald-400" : "text-muted-foreground"}`}>{s.published ? "Published recommendation" : `Not recommended: ${(s.gate_reasons || []).join(", ").replace(/_/g, " ")}`}</p>
                   </div>
                   <div className="text-right"><OddsDisplay odds={s.aposta_odds} /><EvCell ev={s.expected_value} /></div>
                   <StatusPill status={s.status} />

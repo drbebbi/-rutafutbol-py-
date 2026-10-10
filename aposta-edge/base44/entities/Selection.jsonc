@@ -54,6 +54,11 @@
     "last_success_at": {
       "type": "string",
       "format": "date-time"
+    },
+    "odds_observed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Source observation time of current_odds; null = unknown age (never fresh)"
     }
   },
   "required": [

@@ -27,6 +27,25 @@
     },
     "metrics": {
       "type": "object"
+    },
+    "validation_status": {
+      "type": "string",
+      "enum": [
+        "unvalidated",
+        "validated",
+        "rejected"
+      ],
+      "default": "unvalidated"
+    },
+    "validation_reference": {
+      "type": "string"
+    },
+    "validated_by": {
+      "type": "string"
+    },
+    "validated_at": {
+      "type": "string",
+      "format": "date-time"
     }
   },
   "required": [

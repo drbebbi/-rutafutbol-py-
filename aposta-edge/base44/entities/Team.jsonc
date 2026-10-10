@@ -32,6 +32,11 @@
     "is_active": {
       "type": "boolean",
       "default": true
+    },
+    "elo_games": {
+      "type": "number",
+      "default": 0,
+      "description": "Results the Elo rating was fitted on; Elo is ignored below the minimum"
     }
   },
   "required": [

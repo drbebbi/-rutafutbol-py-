@@ -1,6 +1,6 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { getProviderHealth, getSyncRuns, getUnmatchedEvents, importApostaEvent, syncNow, testConnections, manualMapEvent } from "@/lib/server-fns";
+import { getProviderHealth, getSyncRuns, getUnmatchedEvents, importApostaEvent, syncNow, testConnections, manualMapEvent, verifyManualEvent } from "@/lib/server-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -45,10 +45,19 @@ function Admin() {
   const doSync = async (job) => {
     setBusy(job);
     try {
-      const res = await syncFn({ data: { job } });
+      await syncFn({ data: { job } });
       toast.success(`Sync complete: ${job}`);
       router.invalidate();
     } catch (e) { toast.error(`Sync failed: ${e.message}`); }
+    setBusy(null);
+  };
+
+  const verifyFn = useServerFn(verifyManualEvent);
+  const [verifyId, setVerifyId] = React.useState("");
+  const doVerify = async () => {
+    setBusy("verify");
+    try { await verifyFn({ data: { event_id: verifyId.trim() } }); toast.success("Marked as verified on aposta.la"); setVerifyId(""); router.invalidate(); }
+    catch (e) { toast.error(`Verification failed: ${e.message}`); }
     setBusy(null);
   };
 
@@ -98,12 +107,14 @@ function Admin() {
         <CardHeader><CardTitle className="text-base flex items-center gap-2"><Zap className="w-4 h-4" />Pipeline Sync</CardTitle></CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-2">
-            <Button variant="default" size="sm" onClick={() => doSync("full")} disabled={busy === "full"}><RefreshCw className="w-4 h-4 mr-1" />Full Sync</Button>
+            <Button variant="default" size="sm" onClick={() => doSync("full")} disabled={busy === "full"}><RefreshCw className="w-4 h-4 mr-1" />Run Full Cycle</Button>
             <Button variant="outline" size="sm" onClick={() => doSync("aposta_events")} disabled={busy}>Aposta Events</Button>
             <Button variant="outline" size="sm" onClick={() => doSync("aposta_odds")} disabled={busy}>Aposta Odds</Button>
             <Button variant="outline" size="sm" onClick={() => doSync("match")} disabled={busy}>Match Fixtures</Button>
+            <Button variant="outline" size="sm" onClick={() => doSync("football_data")} disabled={busy}>Team Stats</Button>
             <Button variant="outline" size="sm" onClick={() => doSync("predict")} disabled={busy}>Run Predictions</Button>
             <Button variant="outline" size="sm" onClick={() => doSync("value")} disabled={busy}>Value Signals</Button>
+            <Button variant="outline" size="sm" onClick={() => doSync("results")} disabled={busy}>Fetch Results</Button>
             <Button variant="outline" size="sm" onClick={() => doSync("settle")} disabled={busy}>Settle</Button>
             <Button variant="outline" size="sm" onClick={() => doSync("metrics")} disabled={busy}>Metrics</Button>
           </div>
@@ -116,7 +127,12 @@ function Admin() {
         <CardContent className="space-y-3">
           <p className="text-xs text-muted-foreground">Paste an Aposta event as JSON. Required: <code>aposta_event_id</code>, <code>home_team</code>, <code>away_team</code>. Optional: <code>kickoff_utc</code>, <code>competition</code>, <code>markets</code>.</p>
           <Textarea value={jsonInput} onChange={(e) => setJsonInput(e.target.value)} placeholder={`{\n  "aposta_event_id": "123",\n  "home_team": "Fluminense",\n  "away_team": "Vasco",\n  "kickoff_utc": "2026-10-09T22:00:00Z",\n  "competition": "Brasileirão",\n  "markets": [{\n    "market_key": "1x2",\n    "selections": [\n      {"selection":"home","odds":1.9},\n      {"selection":"draw","odds":3.2},\n      {"selection":"away","odds":4.0}\n    ]\n  }]\n}`} className="font-mono text-xs min-h-[180px]" />
-          <Button onClick={doImport} disabled={busy === "import" || !jsonInput.trim()}><Upload className="w-4 h-4 mr-1" />Import & Analyze</Button>
+          <Button onClick={doImport} disabled={busy === "import" || !jsonInput.trim()}><Upload className="w-4 h-4 mr-1" />Import (unverified)</Button>
+          <p className="text-xs text-muted-foreground">Manual imports are never published until you confirm them against aposta.la. Include <code>source_timestamp</code> (when you read the odds); without it the odds count as stale.</p>
+          <div className="flex gap-2">
+            <Input value={verifyId} onChange={(e) => setVerifyId(e.target.value)} placeholder="Event ID to verify" className="h-8 text-xs" />
+            <Button size="sm" variant="outline" onClick={doVerify} disabled={busy === "verify" || !verifyId.trim()}>Verified on aposta.la</Button>
+          </div>
         </CardContent>
       </Card>
 

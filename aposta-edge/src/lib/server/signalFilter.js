@@ -4,37 +4,47 @@
 // provenance chain is verified.
 import { signalEligibility } from "@/lib/server/provenance.js";
 
-export async function filterEligibleSignals(base44, { limit = 50, minEV } = {}) {
-  // Load the user's EV threshold so the filter reflects their profile.
-  const settingsPage = await base44.entities.UserSettings.filter({}, { limit: 1 });
-  const minEVValue = minEV ?? ((settingsPage.items?.[0]?.min_ev ?? 3) / 100);
+const byId = (page) => Object.fromEntries((page.items || []).map((r) => [r.id, r]));
+
+export async function filterEligibleSignals(base44, { limit = 50, minEV, userId = null, includeSuppressed = false } = {}) {
+  // Load THIS user's EV threshold. Without a user id (or settings) the default
+  // applies — never another user's settings row.
+  let minEVValue = minEV;
+  if (minEVValue == null) {
+    const settingsPage = userId ? await base44.entities.UserSettings.filter({ created_by_id: userId }, { limit: 1 }) : { items: [] };
+    const pct = Number(settingsPage.items?.[0]?.min_ev);
+    minEVValue = (Number.isFinite(pct) && pct >= 0 ? pct : 3) / 100;
+  }
 
   const page = await base44.entities.ValueSignal.filter(
-    { is_active: true, status: { $in: ["value", "strong_value", "watch"] } },
+    { is_active: true, status: { $in: ["value", "strong_value"] } },
     { sort: "-quality_adjusted_ev", limit }
   );
   const signals = page.items || [];
   if (signals.length === 0) return [];
 
-  const eventIds = [...new Set(signals.map((s) => s.event_id))];
-  const predictionIds = [...new Set(signals.map((s) => s.prediction_id).filter(Boolean))];
-  const [eventsPage, predictionsPage] = await Promise.all([
-    eventIds.length ? base44.entities.Event.filter({ id: { $in: eventIds } }, { limit: 100 }) : { items: [] },
-    predictionIds.length ? base44.entities.Prediction.filter({ id: { $in: predictionIds } }, { limit: 100 }) : { items: [] },
+  const ids = (field) => [...new Set(signals.map((s) => s[field]).filter(Boolean))];
+  const [eventIds, predictionIds, selectionIds] = [ids("event_id"), ids("prediction_id"), ids("selection_id")];
+  const [events, predictions, selections] = await Promise.all([
+    eventIds.length ? base44.entities.Event.filter({ id: { $in: eventIds } }, { limit: 200 }).then(byId) : {},
+    predictionIds.length ? base44.entities.Prediction.filter({ id: { $in: predictionIds } }, { limit: 200 }).then(byId) : {},
+    selectionIds.length ? base44.entities.Selection.filter({ id: { $in: selectionIds } }, { limit: 200 }).then(byId) : {},
   ]);
-  const eventMap = {};
-  for (const e of eventsPage.items || []) eventMap[e.id] = e;
-  const predMap = {};
-  for (const p of predictionsPage.items || []) predMap[p.id] = p;
+  const modelVersionIds = [...new Set(Object.values(predictions).map((p) => p.model_version_id).filter(Boolean))];
+  const modelVersions = modelVersionIds.length
+    ? byId(await base44.entities.ModelVersion.filter({ id: { $in: modelVersionIds } }, { limit: 50 }))
+    : {};
 
-  // Gate every signal through provenance + freshness + EV rules.
-  return signals
-    .map((s) => {
-      const event = eventMap[s.event_id];
-      const prediction = predMap[s.prediction_id];
-      const { eligible, reasons } = signalEligibility({ signal: s, event, prediction, minEV: minEVValue });
-      return { ...s, event, _suppressed: !eligible, _suppression_reasons: reasons };
-    })
-    .filter((s) => s.event && !s._suppressed)
-    .map(({ _suppressed, _suppression_reasons, ...s }) => s);
+  const nowMs = Date.now();
+  const gated = signals.map((s) => {
+    const event = events[s.event_id];
+    const prediction = predictions[s.prediction_id];
+    const { eligible, reasons } = signalEligibility({
+      signal: s, event, prediction, selection: selections[s.selection_id],
+      modelVersion: prediction ? modelVersions[prediction.model_version_id] : null, minEV: minEVValue, nowMs,
+    });
+    return { ...s, event, eligible, suppression_reasons_now: reasons };
+  });
+  if (includeSuppressed) return gated;
+  return gated.filter((s) => s.event && s.eligible).map(({ eligible, suppression_reasons_now, ...s }) => s);
 }

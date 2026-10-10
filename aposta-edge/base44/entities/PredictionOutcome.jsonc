@@ -58,6 +58,17 @@
     },
     "result_evidence": {
       "type": "object"
+    },
+    "line": {
+      "type": "number"
+    },
+    "predicted_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "kickoff_utc": {
+      "type": "string",
+      "format": "date-time"
     }
   },
   "required": [

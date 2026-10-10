@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   poissonPmf, scoreMatrix, derive1x2, deriveOverUnder, deriveBTTS,
-  deriveCorrectScore, eloExpected, eloUpdate, eloToLambda, ensembleLambdas,
+  deriveCorrectScore, eloExpected, eloUpdate, ensembleLambdas,
   sigmoidCalibrate, predictMatch, validateDistribution,
 } from "../predictionEngine.js";
 
@@ -23,11 +23,11 @@ describe("poissonPmf", () => {
 });
 
 describe("scoreMatrix", () => {
-  it("produces an 11x11 matrix summing to 1", () => {
+  it("produces a 16x16 matrix summing to 1", () => {
     const m = scoreMatrix(1.5, 1.2);
-    expect(m.length).toBe(11);
+    expect(m.length).toBe(16);
     let sum = 0;
-    for (let i = 0; i <= 10; i++) for (let j = 0; j <= 10; j++) sum += m[i][j];
+    for (let i = 0; i <= 15; i++) for (let j = 0; j <= 15; j++) sum += m[i][j];
     expect(sum).toBeCloseTo(1, 4);
   });
 });

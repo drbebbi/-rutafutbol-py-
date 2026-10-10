@@ -1,11 +1,9 @@
-import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
-import { useServerFn } from "@tanstack/react-start";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { listEvents, listRecommendations } from "@/lib/server-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { TrendingUp, Calendar, ArrowRight, Activity } from "lucide-react";
 import { StatusPill, EvCell, OddsDisplay, EmptyState } from "@/components/betting/UiBits";
-import { formatPercent } from "@/lib/oddsMath";
 
 export const Route = createFileRoute("/_authed/")({
   ssr: false,
@@ -19,7 +17,6 @@ export const Route = createFileRoute("/_authed/")({
 
 function Dashboard() {
   const { events, recs } = Route.useLoaderData();
-  const router = useRouter();
   const valueCount = recs.filter((r) => ["value", "strong_value"].includes(r.status)).length;
 
   return (

@@ -145,6 +145,21 @@
     "imported_at": {
       "type": "string",
       "format": "date-time"
+    },
+    "kickoff_history": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      },
+      "description": "Previous kickoff times (postponements)"
+    },
+    "source_verified_by": {
+      "type": "string",
+      "description": "Admin user id who verified a manual import on aposta.la"
+    },
+    "settled_at": {
+      "type": "string",
+      "format": "date-time"
     }
   },
   "required": [

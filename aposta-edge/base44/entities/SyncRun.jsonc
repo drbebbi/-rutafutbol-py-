@@ -1,0 +1,77 @@
+{
+  "name": "SyncRun",
+  "type": "object",
+  "properties": {
+    "job_name": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "running",
+        "success",
+        "failed",
+        "partial",
+        "blocked",
+        "skipped"
+      ],
+      "default": "running"
+    },
+    "started_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "finished_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "items_processed": {
+      "type": "number",
+      "default": 0
+    },
+    "items_failed": {
+      "type": "number",
+      "default": 0
+    },
+    "error_details": {
+      "type": "string"
+    },
+    "details": {
+      "type": "object"
+    },
+    "trigger": {
+      "type": "string",
+      "enum": [
+        "scheduled",
+        "manual",
+        "event"
+      ],
+      "default": "manual"
+    }
+  },
+  "required": [
+    "job_name"
+  ],
+  "rls": {
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

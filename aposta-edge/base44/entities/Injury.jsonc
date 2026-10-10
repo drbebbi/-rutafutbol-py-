@@ -1,0 +1,56 @@
+{
+  "name": "Injury",
+  "type": "object",
+  "properties": {
+    "team_id": {
+      "type": "string"
+    },
+    "event_id": {
+      "type": "string"
+    },
+    "player_name": {
+      "type": "string"
+    },
+    "reason": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "out",
+        "doubtful",
+        "questionable",
+        "suspended"
+      ]
+    },
+    "source": {
+      "type": "string"
+    },
+    "retrieved_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "team_id",
+    "player_name"
+  ],
+  "rls": {
+    "read": {},
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

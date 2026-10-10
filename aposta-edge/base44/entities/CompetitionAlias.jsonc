@@ -1,0 +1,44 @@
+{
+  "name": "CompetitionAlias",
+  "type": "object",
+  "properties": {
+    "competition_id": {
+      "type": "string"
+    },
+    "alias": {
+      "type": "string"
+    },
+    "provider": {
+      "type": "string"
+    },
+    "normalised_name": {
+      "type": "string"
+    },
+    "is_manual": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "required": [
+    "competition_id",
+    "alias"
+  ],
+  "rls": {
+    "read": {},
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

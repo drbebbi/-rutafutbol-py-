@@ -1,0 +1,57 @@
+{
+  "name": "EventMapping",
+  "type": "object",
+  "properties": {
+    "event_id": {
+      "type": "string"
+    },
+    "provider": {
+      "type": "string"
+    },
+    "external_event_id": {
+      "type": "string"
+    },
+    "confidence": {
+      "type": "number"
+    },
+    "match_method": {
+      "type": "string",
+      "enum": [
+        "auto",
+        "manual",
+        "alias"
+      ],
+      "default": "auto"
+    },
+    "match_factors": {
+      "type": "object"
+    },
+    "is_confirmed": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "required": [
+    "event_id",
+    "provider",
+    "external_event_id"
+  ],
+  "rls": {
+    "read": {},
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

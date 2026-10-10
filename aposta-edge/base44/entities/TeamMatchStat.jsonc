@@ -1,0 +1,106 @@
+{
+  "name": "TeamMatchStat",
+  "type": "object",
+  "properties": {
+    "team_id": {
+      "type": "string"
+    },
+    "event_id": {
+      "type": "string"
+    },
+    "is_home": {
+      "type": "boolean"
+    },
+    "opponent_id": {
+      "type": "string"
+    },
+    "goals": {
+      "type": "number"
+    },
+    "goals_conceded": {
+      "type": "number"
+    },
+    "xg": {
+      "type": "number"
+    },
+    "xg_against": {
+      "type": "number"
+    },
+    "shots": {
+      "type": "number"
+    },
+    "shots_on_target": {
+      "type": "number"
+    },
+    "possession": {
+      "type": "number"
+    },
+    "corners": {
+      "type": "number"
+    },
+    "cards": {
+      "type": "number"
+    },
+    "played_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "source": {
+      "type": "string"
+    },
+    "retrieved_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "known_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "data_quality": {
+      "type": "string",
+      "enum": [
+        "full",
+        "partial",
+        "missing"
+      ],
+      "default": "partial"
+    },
+    "external_fixture_id": {
+      "type": "string"
+    },
+    "external_team_id": {
+      "type": "string"
+    },
+    "external_opponent_id": {
+      "type": "string"
+    },
+    "stat_key": {
+      "type": "string"
+    },
+    "verified": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "required": [
+    "team_id"
+  ],
+  "rls": {
+    "read": {},
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "history_custodian"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "history_custodian"
+      }
+    }
+  }
+}

@@ -1,0 +1,93 @@
+{
+  "name": "DataQualitySnapshot",
+  "type": "object",
+  "properties": {
+    "event_id": {
+      "type": "string"
+    },
+    "fixture_mapping": {
+      "type": "string",
+      "enum": [
+        "good",
+        "acceptable",
+        "poor",
+        "missing"
+      ],
+      "default": "missing"
+    },
+    "odds_freshness": {
+      "type": "string",
+      "enum": [
+        "fresh",
+        "valid",
+        "stale",
+        "missing"
+      ],
+      "default": "missing"
+    },
+    "stats_completeness": {
+      "type": "string",
+      "enum": [
+        "full",
+        "partial",
+        "missing"
+      ],
+      "default": "missing"
+    },
+    "lineup_quality": {
+      "type": "string",
+      "enum": [
+        "confirmed",
+        "expected",
+        "not_confirmed"
+      ],
+      "default": "not_confirmed"
+    },
+    "injury_quality": {
+      "type": "string",
+      "enum": [
+        "full",
+        "partial",
+        "missing"
+      ],
+      "default": "missing"
+    },
+    "model_sample_quality": {
+      "type": "string",
+      "enum": [
+        "sufficient",
+        "limited",
+        "insufficient"
+      ],
+      "default": "insufficient"
+    },
+    "overall_score": {
+      "type": "number"
+    },
+    "captured_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "event_id"
+  ],
+  "rls": {
+    "read": {},
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

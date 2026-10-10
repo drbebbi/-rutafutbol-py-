@@ -1,0 +1,172 @@
+{
+  "name": "Event",
+  "type": "object",
+  "properties": {
+    "sport": {
+      "type": "string",
+      "default": "football"
+    },
+    "aposta_event_id": {
+      "type": "string"
+    },
+    "aposta_event_url": {
+      "type": "string"
+    },
+    "competition_id": {
+      "type": "string"
+    },
+    "competition_name": {
+      "type": "string"
+    },
+    "country": {
+      "type": "string"
+    },
+    "home_team_id": {
+      "type": "string"
+    },
+    "away_team_id": {
+      "type": "string"
+    },
+    "home_team_name": {
+      "type": "string"
+    },
+    "away_team_name": {
+      "type": "string"
+    },
+    "kickoff_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "kickoff_confidence": {
+      "type": "string",
+      "enum": [
+        "confirmed",
+        "tentative",
+        "unknown"
+      ],
+      "default": "confirmed"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "scheduled",
+        "live",
+        "finished",
+        "postponed",
+        "cancelled",
+        "suspended"
+      ],
+      "default": "scheduled"
+    },
+    "home_score": {
+      "type": "number"
+    },
+    "away_score": {
+      "type": "number"
+    },
+    "mapping_confidence": {
+      "type": "number"
+    },
+    "mapping_status": {
+      "type": "string",
+      "enum": [
+        "matched",
+        "unmatched",
+        "manual",
+        "ambiguous",
+        "demo"
+      ],
+      "default": "unmatched"
+    },
+    "external_event_id": {
+      "type": "string"
+    },
+    "mapping_evidence": {
+      "type": "object"
+    },
+    "source_verified_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "source_endpoint_id": {
+      "type": "string"
+    },
+    "result_evidence": {
+      "type": "object"
+    },
+    "lineup_status": {
+      "type": "string",
+      "enum": [
+        "not_confirmed",
+        "expected",
+        "confirmed"
+      ],
+      "default": "not_confirmed"
+    },
+    "last_odds_sync_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "last_odds_attempt_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "last_odds_success_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "odds_fetch_status": {
+      "type": "string"
+    },
+    "last_data_sync_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "pipeline_status": {
+      "type": "string"
+    },
+    "pipeline_reason": {
+      "type": "string"
+    },
+    "is_locked": {
+      "type": "boolean",
+      "default": false
+    },
+    "provenance": {
+      "type": "string",
+      "enum": [
+        "aposta_api",
+        "manual_import",
+        "demo",
+        "unknown"
+      ],
+      "default": "unknown"
+    },
+    "imported_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "home_team_name",
+    "away_team_name"
+  ],
+  "rls": {
+    "read": {},
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

@@ -1,0 +1,117 @@
+{
+  "name": "ValueSignal",
+  "type": "object",
+  "properties": {
+    "event_id": {
+      "type": "string"
+    },
+    "prediction_id": {
+      "type": "string"
+    },
+    "market_id": {
+      "type": "string"
+    },
+    "selection_id": {
+      "type": "string"
+    },
+    "odds_snapshot_id": {
+      "type": "string"
+    },
+    "market_snapshot_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "signal_key": {
+      "type": "string"
+    },
+    "market_key": {
+      "type": "string"
+    },
+    "selection": {
+      "type": "string"
+    },
+    "line": {
+      "type": "number"
+    },
+    "aposta_odds": {
+      "type": "number"
+    },
+    "aposta_no_vig_probability": {
+      "type": "number"
+    },
+    "model_probability": {
+      "type": "number"
+    },
+    "probability_edge": {
+      "type": "number"
+    },
+    "expected_value": {
+      "type": "number"
+    },
+    "fair_odds": {
+      "type": "number"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "value",
+        "watch",
+        "no_value",
+        "strong_value",
+        "avoid",
+        "insufficient_data",
+        "stale",
+        "market_suspended"
+      ],
+      "default": "no_value"
+    },
+    "data_quality": {
+      "type": "object"
+    },
+    "confidence": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "default": "low"
+    },
+    "quality_adjusted_ev": {
+      "type": "number"
+    },
+    "calculated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": [
+    "event_id",
+    "market_key",
+    "selection"
+  ],
+  "rls": {
+    "read": {},
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

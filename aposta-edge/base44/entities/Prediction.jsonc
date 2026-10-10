@@ -1,0 +1,146 @@
+{
+  "name": "Prediction",
+  "type": "object",
+  "properties": {
+    "event_id": {
+      "type": "string"
+    },
+    "model_version_id": {
+      "type": "string"
+    },
+    "version": {
+      "type": "number",
+      "default": 1
+    },
+    "trigger": {
+      "type": "string",
+      "enum": [
+        "initial",
+        "lineup_update",
+        "odds_update",
+        "injury_update"
+      ],
+      "default": "initial"
+    },
+    "market_key": {
+      "type": "string",
+      "default": "1x2"
+    },
+    "probabilities": {
+      "type": "object"
+    },
+    "market_probabilities": {
+      "type": "object"
+    },
+    "lambda_home": {
+      "type": "number"
+    },
+    "lambda_away": {
+      "type": "number"
+    },
+    "expected_goals_home": {
+      "type": "number"
+    },
+    "expected_goals_away": {
+      "type": "number"
+    },
+    "score_distribution": {
+      "type": "object"
+    },
+    "component_contributions": {
+      "type": "object"
+    },
+    "feature_snapshot": {
+      "type": "object"
+    },
+    "data_quality": {
+      "type": "object"
+    },
+    "confidence": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "default": "low"
+    },
+    "confidence_score": {
+      "type": "number"
+    },
+    "predicted_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "as_of": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "is_locked": {
+      "type": "boolean",
+      "default": false
+    },
+    "superseded_by": {
+      "type": "string"
+    },
+    "predecessor_id": {
+      "type": "string"
+    },
+    "input_key": {
+      "type": "string"
+    },
+    "computation_status": {
+      "type": "string"
+    },
+    "calibration_status": {
+      "type": "string"
+    },
+    "schema_version": {
+      "type": "number"
+    },
+    "rho": {
+      "type": "number"
+    },
+    "tail_mass": {
+      "type": "number"
+    },
+    "mapping_evidence": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "event_id",
+    "model_version_id"
+  ],
+  "rls": {
+    "read": {
+      "$or": [
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        },
+        {
+          "user_condition": {
+            "role": "user"
+          }
+        }
+      ]
+    },
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "history_custodian"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "history_custodian"
+      }
+    }
+  }
+}

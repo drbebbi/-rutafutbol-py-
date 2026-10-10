@@ -1,0 +1,58 @@
+{
+  "name": "Team",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "short_name": {
+      "type": "string"
+    },
+    "country": {
+      "type": "string"
+    },
+    "sport": {
+      "type": "string",
+      "default": "football"
+    },
+    "elo_rating": {
+      "type": "number",
+      "default": 1500
+    },
+    "elo_rating_updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "external_ids": {
+      "type": "object"
+    },
+    "logo_url": {
+      "type": "string"
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": [
+    "name"
+  ],
+  "rls": {
+    "read": {},
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

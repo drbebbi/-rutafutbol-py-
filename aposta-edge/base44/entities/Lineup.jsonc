@@ -1,0 +1,61 @@
+{
+  "name": "Lineup",
+  "type": "object",
+  "properties": {
+    "event_id": {
+      "type": "string"
+    },
+    "team_id": {
+      "type": "string"
+    },
+    "is_home": {
+      "type": "boolean"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "expected",
+        "confirmed"
+      ],
+      "default": "expected"
+    },
+    "formation": {
+      "type": "string"
+    },
+    "players": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "source": {
+      "type": "string"
+    },
+    "retrieved_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "event_id",
+    "team_id"
+  ],
+  "rls": {
+    "read": {},
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

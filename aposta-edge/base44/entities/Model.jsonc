@@ -1,0 +1,51 @@
+{
+  "name": "Model",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "sport": {
+      "type": "string",
+      "default": "football"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "poisson",
+        "elo",
+        "feature",
+        "ensemble"
+      ],
+      "default": "ensemble"
+    },
+    "description": {
+      "type": "string"
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": [
+    "name"
+  ],
+  "rls": {
+    "read": {},
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

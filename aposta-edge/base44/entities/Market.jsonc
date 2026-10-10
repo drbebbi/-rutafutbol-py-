@@ -1,0 +1,88 @@
+{
+  "name": "Market",
+  "type": "object",
+  "properties": {
+    "event_id": {
+      "type": "string"
+    },
+    "market_key": {
+      "type": "string"
+    },
+    "market_name": {
+      "type": "string"
+    },
+    "period": {
+      "type": "string",
+      "enum": [
+        "full_time",
+        "first_half",
+        "second_half"
+      ],
+      "default": "full_time"
+    },
+    "line": {
+      "type": "number"
+    },
+    "line_label": {
+      "type": "string"
+    },
+    "provider_market_id": {
+      "type": "string"
+    },
+    "provider_market_name": {
+      "type": "string"
+    },
+    "raw_payload": {
+      "type": "object"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "open",
+        "suspended",
+        "settled",
+        "closed",
+        "missing",
+        "unknown"
+      ],
+      "default": "unknown"
+    },
+    "tier": {
+      "type": "number",
+      "default": 1
+    },
+    "current_batch_id": {
+      "type": "string"
+    },
+    "last_attempt_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "last_success_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "event_id",
+    "market_key"
+  ],
+  "rls": {
+    "read": {},
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

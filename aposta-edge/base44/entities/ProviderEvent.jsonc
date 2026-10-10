@@ -1,0 +1,62 @@
+{
+  "name": "ProviderEvent",
+  "type": "object",
+  "properties": {
+    "provider": {
+      "type": "string"
+    },
+    "external_event_id": {
+      "type": "string"
+    },
+    "sport": {
+      "type": "string",
+      "default": "football"
+    },
+    "competition_name": {
+      "type": "string"
+    },
+    "home_team_name": {
+      "type": "string"
+    },
+    "away_team_name": {
+      "type": "string"
+    },
+    "kickoff_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "raw_payload": {
+      "type": "object"
+    },
+    "retrieved_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "is_consumed": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "required": [
+    "provider",
+    "external_event_id"
+  ],
+  "rls": {
+    "read": {},
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

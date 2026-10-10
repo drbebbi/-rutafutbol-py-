@@ -1,0 +1,81 @@
+{
+  "name": "UserWatchlist",
+  "type": "object",
+  "properties": {
+    "item_type": {
+      "type": "string",
+      "enum": [
+        "event",
+        "team",
+        "competition",
+        "signal"
+      ]
+    },
+    "item_id": {
+      "type": "string"
+    },
+    "label": {
+      "type": "string"
+    },
+    "min_ev_threshold": {
+      "type": "number"
+    },
+    "notify_on_value": {
+      "type": "boolean",
+      "default": true
+    },
+    "notify_on_lineup": {
+      "type": "boolean",
+      "default": false
+    },
+    "notify_on_odds_move": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "required": [
+    "item_type",
+    "item_id"
+  ],
+  "rls": {
+    "read": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "create": {
+      "created_by_id": "{{user.id}}"
+    },
+    "update": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    }
+  }
+}

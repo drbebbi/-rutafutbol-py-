@@ -1,0 +1,54 @@
+{
+  "name": "ModelVersion",
+  "type": "object",
+  "properties": {
+    "model_id": {
+      "type": "string"
+    },
+    "version_label": {
+      "type": "string"
+    },
+    "components": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "calibration_method": {
+      "type": "string"
+    },
+    "trained_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "is_production": {
+      "type": "boolean",
+      "default": false
+    },
+    "metrics": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "model_id",
+    "version_label"
+  ],
+  "rls": {
+    "read": {},
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

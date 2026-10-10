@@ -1,0 +1,134 @@
+{
+  "name": "Recommendation",
+  "type": "object",
+  "properties": {
+    "event_id": {
+      "type": "string"
+    },
+    "value_signal_id": {
+      "type": "string"
+    },
+    "market_key": {
+      "type": "string"
+    },
+    "selection": {
+      "type": "string"
+    },
+    "line": {
+      "type": "number"
+    },
+    "aposta_odds": {
+      "type": "number"
+    },
+    "model_probability": {
+      "type": "number"
+    },
+    "expected_value": {
+      "type": "number"
+    },
+    "probability_edge": {
+      "type": "number"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "value",
+        "watch",
+        "no_value",
+        "strong_value",
+        "avoid",
+        "insufficient_data",
+        "stale",
+        "market_suspended"
+      ],
+      "default": "no_value"
+    },
+    "confidence": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "default": "medium"
+    },
+    "data_quality": {
+      "type": "object"
+    },
+    "explanation": {
+      "type": "string"
+    },
+    "positive_factors": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "negative_factors": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "risk_notes": {
+      "type": "string"
+    },
+    "aposta_event_url": {
+      "type": "string"
+    },
+    "quality_adjusted_ev": {
+      "type": "number"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "is_locked": {
+      "type": "boolean",
+      "default": false
+    },
+    "closing_odds": {
+      "type": "number"
+    },
+    "closing_no_vig_probability": {
+      "type": "number"
+    },
+    "clv": {
+      "type": "number"
+    },
+    "settlement_status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "win",
+        "loss",
+        "push",
+        "void"
+      ],
+      "default": "pending"
+    }
+  },
+  "required": [
+    "event_id",
+    "market_key",
+    "selection"
+  ],
+  "rls": {
+    "read": {},
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

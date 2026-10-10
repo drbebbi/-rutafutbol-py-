@@ -1,0 +1,64 @@
+{
+  "name": "Settlement",
+  "type": "object",
+  "properties": {
+    "event_id": {
+      "type": "string"
+    },
+    "recommendation_id": {
+      "type": "string"
+    },
+    "market_key": {
+      "type": "string"
+    },
+    "selection": {
+      "type": "string"
+    },
+    "result": {
+      "type": "string",
+      "enum": [
+        "win",
+        "loss",
+        "push",
+        "half_win",
+        "half_loss",
+        "void"
+      ],
+      "default": "void"
+    },
+    "payout_multiplier": {
+      "type": "number"
+    },
+    "home_score": {
+      "type": "number"
+    },
+    "away_score": {
+      "type": "number"
+    },
+    "settled_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "event_id"
+  ],
+  "rls": {
+    "read": {},
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

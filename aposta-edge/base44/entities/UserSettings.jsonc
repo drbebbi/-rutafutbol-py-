@@ -1,0 +1,85 @@
+{
+  "name": "UserSettings",
+  "type": "object",
+  "properties": {
+    "timezone": {
+      "type": "string",
+      "default": "America/Asuncion"
+    },
+    "value_profile": {
+      "type": "string",
+      "enum": [
+        "conservative",
+        "balanced",
+        "aggressive"
+      ],
+      "default": "balanced"
+    },
+    "min_ev": {
+      "type": "number",
+      "default": 3
+    },
+    "min_mapping_confidence": {
+      "type": "string",
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ],
+      "default": "high"
+    },
+    "preferred_sport": {
+      "type": "string",
+      "default": "football"
+    },
+    "odds_format": {
+      "type": "string",
+      "enum": [
+        "decimal",
+        "american"
+      ],
+      "default": "decimal"
+    }
+  },
+  "rls": {
+    "read": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "create": {
+      "created_by_id": "{{user.id}}"
+    },
+    "update": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    }
+  }
+}

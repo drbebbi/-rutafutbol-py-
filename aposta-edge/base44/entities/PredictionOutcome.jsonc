@@ -1,0 +1,85 @@
+{
+  "name": "PredictionOutcome",
+  "type": "object",
+  "properties": {
+    "prediction_id": {
+      "type": "string"
+    },
+    "event_id": {
+      "type": "string"
+    },
+    "market_key": {
+      "type": "string"
+    },
+    "selection": {
+      "type": "string"
+    },
+    "predicted_probability": {
+      "type": "number"
+    },
+    "result": {
+      "type": "string",
+      "enum": [
+        "win",
+        "loss",
+        "push",
+        "half_win",
+        "half_loss",
+        "void",
+        "pending"
+      ],
+      "default": "pending"
+    },
+    "settled_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "home_score": {
+      "type": "number"
+    },
+    "away_score": {
+      "type": "number"
+    },
+    "outcome_key": {
+      "type": "string"
+    },
+    "verified": {
+      "type": "boolean",
+      "default": false
+    },
+    "log_loss": {
+      "type": "number"
+    },
+    "brier_score": {
+      "type": "number"
+    },
+    "correct": {
+      "type": "number"
+    },
+    "result_evidence": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "prediction_id",
+    "event_id"
+  ],
+  "rls": {
+    "read": {},
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "history_custodian"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "history_custodian"
+      }
+    }
+  }
+}

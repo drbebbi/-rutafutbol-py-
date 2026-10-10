@@ -1,0 +1,87 @@
+{
+  "name": "OddsSnapshot",
+  "type": "object",
+  "properties": {
+    "event_id": {
+      "type": "string"
+    },
+    "market_id": {
+      "type": "string"
+    },
+    "market_key": {
+      "type": "string"
+    },
+    "selection": {
+      "type": "string"
+    },
+    "line": {
+      "type": "number"
+    },
+    "bookmaker": {
+      "type": "string",
+      "default": "APOSTA"
+    },
+    "decimal_odds": {
+      "type": "number"
+    },
+    "market_status": {
+      "type": "string"
+    },
+    "selection_status": {
+      "type": "string"
+    },
+    "retrieval_timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "source_timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "observed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "implied_probability": {
+      "type": "number"
+    },
+    "raw_payload": {
+      "type": "object"
+    },
+    "batch_id": {
+      "type": "string"
+    },
+    "snapshot_key": {
+      "type": "string"
+    },
+    "source_verified": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "required": [
+    "event_id",
+    "market_key",
+    "selection",
+    "decimal_odds",
+    "retrieval_timestamp"
+  ],
+  "rls": {
+    "read": {},
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "history_custodian"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "history_custodian"
+      }
+    }
+  }
+}

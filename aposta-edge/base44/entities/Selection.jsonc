@@ -1,0 +1,81 @@
+{
+  "name": "Selection",
+  "type": "object",
+  "properties": {
+    "market_id": {
+      "type": "string"
+    },
+    "event_id": {
+      "type": "string"
+    },
+    "selection": {
+      "type": "string"
+    },
+    "selection_label": {
+      "type": "string"
+    },
+    "line": {
+      "type": "number"
+    },
+    "current_odds": {
+      "type": "number"
+    },
+    "opening_odds": {
+      "type": "number"
+    },
+    "highest_odds": {
+      "type": "number"
+    },
+    "lowest_odds": {
+      "type": "number"
+    },
+    "odds_updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "is_suspended": {
+      "type": "boolean",
+      "default": true
+    },
+    "provider_selection_id": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "default": "unknown"
+    },
+    "current_snapshot_id": {
+      "type": "string"
+    },
+    "last_attempt_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "last_success_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "market_id",
+    "selection"
+  ],
+  "rls": {
+    "read": {},
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

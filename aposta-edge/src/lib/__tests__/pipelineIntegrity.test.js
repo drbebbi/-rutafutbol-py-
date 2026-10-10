@@ -197,6 +197,21 @@ describe("value signals → recommendations", () => {
   });
 });
 
+describe("analysis package from stored data", () => {
+  it("in-app analyst and export see the same gated facts", async () => {
+    const { db, ev } = await fullChain();
+    const { loadEventDetail } = await import("@/lib/server/eventDetail.js");
+    const { buildAnalysisPackage } = await import("@/lib/analysisPackage.js");
+    const pkg = buildAnalysisPackage(await loadEventDetail(db, ev.id));
+    const home = pkg.markets[0].selections.find((s) => s.selection === "home");
+    expect(home.aposta_odds).toBe(5.0);
+    expect(home.odds_snapshot_id).toBe(db._stores.Selection.find((s) => s.selection === "home").current_snapshot_id);
+    expect(home.published).toBe(false);
+    expect(home.not_published_reasons).toContain("model_not_validated");
+    expect(pkg.prediction.computation_status).toBe("computed");
+  });
+});
+
 describe("kickoff change (postponement)", () => {
   it("is versioned and invalidates prediction and signals", async () => {
     const { db, ev } = await fullChain();

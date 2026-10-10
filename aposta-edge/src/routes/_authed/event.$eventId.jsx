@@ -5,6 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StatusPill, EvCell, OddsDisplay, ConfidencePill, ProbBar, QualityBadge, EmptyState } from "@/components/betting/UiBits";
 import { formatPercent } from "@/lib/oddsMath";
+import { buildAnalysisPackage } from "@/lib/analysisPackage";
+import { STANDALONE_SYSTEM_PROMPT } from "@/lib/analystPrompts";
+import { toast } from "sonner";
 import { ArrowLeft, TrendingUp, Activity, ShieldAlert, AlertTriangle, ExternalLink } from "lucide-react";
 
 export const Route = createFileRoute("/_authed/event/$eventId")({
@@ -37,6 +40,8 @@ function EventDetail() {
           {event.aposta_event_id && <p className="text-xs text-muted-foreground font-mono">Aposta ID: {event.aposta_event_id}{event.aposta_event_url ? <a href={event.aposta_event_url} target="_blank" rel="noreferrer" className="ml-2 inline-flex items-center text-chart-1 hover:underline">Source <ExternalLink className="w-3 h-3 ml-0.5" /></a> : null}</p>}
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" onClick={() => copyText(JSON.stringify(buildAnalysisPackage(d), null, 2), "Paquete copiado")}>Copiar paquete para IA</Button>
+          <Button variant="ghost" size="sm" onClick={() => copyText(STANDALONE_SYSTEM_PROMPT, "Prompt copiado")}>Copiar prompt</Button>
           <Badge variant="outline" className={is_demo ? "text-red-400 border-red-500/40 bg-red-500/10" : verifiable ? "text-emerald-400 border-emerald-500/30" : "text-amber-400 border-amber-500/30"}>{provenance.label}</Badge>
           {event.is_locked && <Badge variant="outline" className="text-amber-400 border-amber-500/30">Locked (kickoff passed)</Badge>}
           {kickoff_passed && !event.is_locked && <Badge variant="outline" className="text-amber-400 border-amber-500/30">Kickoff passed</Badge>}
@@ -220,4 +225,10 @@ function EventDetail() {
       )}
     </div>
   );
+}
+
+// Clipboard export for the standalone analyst (prompt + analysis package).
+async function copyText(text, okMessage) {
+  try { await navigator.clipboard.writeText(text); toast.success(okMessage); }
+  catch { toast.error("No se pudo copiar al portapapeles"); }
 }

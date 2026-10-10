@@ -6,7 +6,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireUser } from "@/lib/auth-middleware";
 import { addTeamAlias } from "@/lib/server/eventMatcher.js";
-import { isDemoEvent, hasVerifiableProvenance, isOddsFresh, kickoffPassed, mappingConfident, signalEligibility, describeProvenance, predictionIsComputed } from "@/lib/server/provenance.js";
+import { isDemoEvent, kickoffPassed } from "@/lib/server/provenance.js";
 
 let _pipe, _aposta, _football;
 const pipe = () => (_pipe ??= import("@/lib/server/syncPipeline.server.js"));
@@ -43,51 +43,8 @@ export const getEventDetail = createServerFn({ method: "GET" })
   .middleware([requireUser])
   .validator(z.object({ id: z.string() }))
   .handler(async ({ data, context }) => {
-    const b = context.getBase44();
-    const event = await b.entities.Event.get(data.id).catch(() => null);
-    if (!event) return null;
-    const [markets, predictions, injuries, lineups, stats, snapshots] = await Promise.all([
-      b.entities.Market.filter({ event_id: data.id }, { limit: 50 }),
-      b.entities.Prediction.filter({ event_id: data.id }, { limit: 10, sort: "-version" }),
-      b.entities.Injury.filter({ event_id: data.id }, { limit: 20 }),
-      b.entities.Lineup.filter({ event_id: data.id }, { limit: 2 }),
-      b.entities.TeamMatchStat.filter({ event_id: data.id }, { limit: 20 }),
-      b.entities.OddsSnapshot.filter({ event_id: data.id }, { limit: 100, sort: "-retrieval_timestamp" }),
-    ]);
-    const marketIds = (markets.items || []).map((m) => m.id);
-    const selections = marketIds.length
-      ? await b.entities.Selection.filter({ market_id: { $in: marketIds } }, { limit: 200 })
-      : { items: [] };
-    const signals = await b.entities.ValueSignal.filter({ event_id: data.id, is_active: true }, { limit: 30 });
-    const now = Date.now();
-    const pred = (predictions.items || [])[0];
-    const modelVersion = pred?.model_version_id ? await b.entities.ModelVersion.get(pred.model_version_id).catch(() => null) : null;
-    const selById = Object.fromEntries((selections.items || []).map((s) => [s.id, s]));
-    // Every signal carries the reasons it is (not) published, recomputed now.
-    const enrichedSignals = (signals.items || []).map((s) => {
-      const gate = signalEligibility({ signal: s, event, prediction: pred, selection: selById[s.selection_id], modelVersion, nowMs: now });
-      return { ...s, odds_fresh: isOddsFresh(s.odds_observed_at, now), published: gate.eligible, gate_reasons: gate.reasons };
-    });
-    return {
-      event,
-      provenance: describeProvenance(event),
-      // Fresh only if every current price has a recent SOURCE observation time.
-      odds_fresh: (selections.items || []).length > 0 && (selections.items || []).every((sel) => isOddsFresh(sel.odds_observed_at, now)),
-      kickoff_passed: kickoffPassed(event, now),
-      mapping_confident: mappingConfident(event),
-      is_demo: isDemoEvent(event),
-      verifiable: hasVerifiableProvenance(event),
-      prediction_computed: predictionIsComputed(pred),
-      model_version: modelVersion ? { label: modelVersion.version_label, validation_status: modelVersion.validation_status || "unvalidated", calibration_method: modelVersion.calibration_method } : null,
-      markets: markets.items || [],
-      selections: selections.items || [],
-      predictions: predictions.items || [],
-      injuries: injuries.items || [],
-      lineups: lineups.items || [],
-      stats: stats.items || [],
-      snapshots: snapshots.items || [],
-      signals: enrichedSignals,
-    };
+    const { loadEventDetail } = await import("@/lib/server/eventDetail.js");
+    return loadEventDetail(context.getBase44(), data.id);
   });
 
 export const listRecommendations = createServerFn({ method: "GET" })

@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Shield, RefreshCw, Upload, Zap, Plug, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import React from "react";
+import { ApostaCaptureForm } from "@/components/betting/ApostaCaptureForm";
 
 export const Route = createFileRoute("/_authed/admin")({
   ssr: false,
@@ -120,6 +121,9 @@ function Admin() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Odds capture from aposta.la (lawful manual path) */}
+      <ApostaCaptureForm />
 
       {/* Manual import */}
       <Card>

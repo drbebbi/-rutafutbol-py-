@@ -140,6 +140,33 @@ export const importApostaEvent = createServerFn({ method: "POST" })
     return ev;
   });
 
+// Admin reads odds on aposta.la and types them in (the lawful path: aposta.la
+// disallows automated /api/ access and uses bot protection). The observation
+// time is the SERVER time of submission, the capture counts as admin-verified,
+// and the event is predicted and evaluated right away.
+const oddsField = z.union([z.string().max(10), z.number()]).optional();
+export const captureApostaOdds = createServerFn({ method: "POST" })
+  .middleware([requireUser])
+  .validator(z.object({
+    event_url: z.string().max(300), home_team: z.string().max(80), away_team: z.string().max(80),
+    competition: z.string().max(120).optional(), kickoff_local: z.string().max(16), confirmed_now: z.boolean(),
+    odds_home: oddsField, odds_draw: oddsField, odds_away: oddsField, odds_over25: oddsField, odds_under25: oddsField,
+    odds_btts_yes: oddsField, odds_btts_no: oddsField,
+  }))
+  .handler(async ({ data, context }) => {
+    admin(context);
+    const { buildCapturePayload } = await import("@/lib/apostaCapture.js");
+    const built = buildCapturePayload(data, new Date().toISOString());
+    if (!built.ok) throw Object.assign(new Error(built.errors.join(" · ")), { status: 400 });
+    const b = context.getBase44().asServiceRole;
+    const p = await pipe();
+    const ev = await p.importApostaEventManual(b, built.payload);
+    await p.verifyManualEvent(b, ev.id, context.user.id);
+    const predict = await p.runPredictionModels(b, ev.id, "odds_update").catch((e) => ({ error: e.message }));
+    const value = await p.calculateValueSignals(b, ev.id, "manual").catch((e) => ({ error: e.message }));
+    return { event_id: ev.id, aposta_event_id: built.payload.aposta_event_id, kickoff_utc: built.payload.kickoff_utc, predict: predict?.details?.results?.[0] || predict, value };
+  });
+
 // Admin attests that a manually imported event (teams, kickoff, odds) was
 // checked on aposta.la. Without this, manual imports never publish.
 export const verifyManualEvent = createServerFn({ method: "POST" })

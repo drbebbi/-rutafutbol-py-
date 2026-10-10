@@ -69,7 +69,7 @@ export const chatWithEdgeAnalyst = createServerFn({ method: "POST" })
       description: "Get the model's forecast quality (multiclass log loss, Brier, accuracy) and the settled betting record (profit units, yield, drawdown, CLV) for published and shadow recommendations.",
       inputSchema: z.object({}),
     }).server(async () => {
-      const { computePerformance } = await import("@/lib/server/syncPipeline.server.js");
+      const { computePerformance } = await import("@/lib/server/performance.js");
       return computePerformance(base44);
     });
 
